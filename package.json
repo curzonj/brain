@@ -1,0 +1,23 @@
+{
+  "name": "brain",
+  "version": "1.0.0",
+  "description": "This is the front end to my personal knowledge base system.",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "gh-pages -d dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/curzonj/brain.git"
+  },
+  "author": "curzonj@gmail.com",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/curzonj/brain/issues"
+  },
+  "homepage": "https://github.com/curzonj/brain#readme",
+  "devDependencies": {
+    "gh-pages": "^2.0.1"
+  }
+}
