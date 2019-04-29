@@ -1,0 +1,175 @@
+description: "represents a range of types of things including: concepts, entities, topics"
+type: object
+additionalProperties: false
+properties:
+  _id:
+    type: string
+  _rev:
+    type: string
+  what:
+    description: a concrete independent topic
+    type: string
+  list_of:
+    description: list_of can refer to the first of topics, facets, thoughts. shouldn't have both topics and facets
+    type: string
+  aka:
+    type: array
+    items:
+      type: string
+  date:
+    $ref: "#/definitions/date"
+  related:
+    $ref: "#/definitions/related"
+  links:
+    $ref: "#/definitions/links"
+  books:
+    $ref: "#/definitions/books"
+  todo:
+    $ref: "#/definitions/plainTextList"
+  thoughts:
+    $ref: "#/definitions/plainTextList"
+  topics:
+    $ref: "#/definitions/nestedTopicList"
+definitions:
+  related:
+    oneOf:
+      - type: string
+      - type: array
+        items:
+          type: string
+  books:
+    type: array
+    items:
+      oneOf:
+        - type: string
+        - $ref: "#/definitions/externalReference"
+  links:
+    type: array
+    items:
+      oneOf:
+        - type: string
+          pattern: "^https?://"
+        - $ref: "#/definitions/externalReference"
+  src:
+    oneOf:
+      - description: If it doesn't start with http it's a noun/author
+        type: string
+      - $ref: "#/definitions/externalReference"
+  externalReference:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        properties:
+          book:
+            string: string
+          chapter:
+            string: string
+          page:
+            string: string
+          link:
+            type: string
+          title:
+            type: string
+          comment:
+            type: string
+          author:
+            type: string
+      - type: object
+        additionalProperties: false
+        properties:
+          search:
+            type: string
+          site:
+            type: string
+  nestedTopicList:
+    type: array
+    items:
+      oneOf:
+        - $ref: "#/definitions/nestedTopic"
+        - description: plain text strings are concrete independent topic names
+          type: string
+  nestedTopic:
+    type: object
+    additionalProperties: false
+    properties:
+      about:
+        description: about topics are concepts dependent on the parent concept
+        type: string
+      list_of:
+        description: list_of can refer to topics and list items. list_of topics are concepts dependent on the parent concept
+        type: string
+      aka:
+        type: array
+        items:
+          type: string
+      props:
+        type: object
+      date:
+        $ref: "#/definitions/date"
+      related:
+        $ref: "#/definitions/related"
+      links:
+        $ref: "#/definitions/links"
+      books:
+        $ref: "#/definitions/books"
+      todo:
+        $ref: "#/definitions/plainTextList"
+      topics:
+        $ref: "#/definitions/nestedTopicList"
+      list:
+        description: Only to be used for plain text list items for list_of topics
+        $ref: "#/definitions/plainTextList"
+      thoughts:
+        $ref: "#/definitions/plainTextList"
+  plainTextList:
+    type: array
+    items:
+      $ref: "#/definitions/plainText"
+  date:
+    type: string
+    pattern: "^20\\d{2}-\\d{2}-\\d{2}$"
+  plainText:
+    oneOf:
+      - type: string
+      - $ref: "#/definitions/textObject"
+  textObject:
+    type: object
+    additionalProperties: false
+    properties:
+      # plain text attributes
+      text:
+        type: string
+
+      # Quote attributes
+      about:
+        type: string
+      code:
+        type: string
+      quote:
+        type: string
+      src:
+        $ref: "#/definitions/src"
+
+      # Question answer attributes
+      question:
+        # unenforced, but required for this type
+        type: string
+      answer:
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+
+      # Misc attributes
+      date:
+        $ref: "#/definitions/date"
+      more:
+        $ref: "#/definitions/plainTextList"
+      related:
+        description: related but not nested in the listed topics
+        $ref: "#/definitions/related"
+      links:
+        $ref: "#/definitions/links"
+      books:
+        $ref: "#/definitions/books"
