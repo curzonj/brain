@@ -20,20 +20,25 @@ requireConf([
   (async () => {
     populateAuth()
 
-    const { rows } = await db.allDocs({
-      include_docs: true,
-    })
-    const docs = rows.flatMap(r => r.doc)
+    let index = await db.get('index').catch(e => null)
+    if (!index) {
+      await sync();
+      index = await db.get('index').catch(e => null)
+    }
 
-    const index = docs.find(d => d._id === 'index')
-
-    renderDoc(index)
+    if (index) {
+      renderDoc(index)
+    }
 
     setTimeout(async function() {
       await sync()
 
-      docs.forEach(d => {
-        if (d._id !== 'index') renderDoc(d)
+      const { rows } = await db.allDocs({
+        include_docs: true,
+      })
+
+      rows.forEach(({ doc }) => {
+        if (doc._id !== 'index') renderDoc(doc)
       })
     }, 100);
   })()
