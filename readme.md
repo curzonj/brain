@@ -9,6 +9,12 @@ The deployed static files are available via github pages:
 
 https://curzonj.github.io/brain
 
+# deployment
+
+```bash
+npm run deploy
+```
+
 # development
 
 to serve local files with a url you can use:
