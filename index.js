@@ -6,16 +6,22 @@ const choo = require('choo')
 css('tachyons')
 
 const app = choo()
-if (process.env.NODE_ENV !== 'production') {
+//if (process.env.NODE_ENV !== 'production') {
   app.use(require('choo-devtools')())
-} else {
-  app.use(require('choo-service-worker')())
-}
+//} else {
+  //app.use(require('choo-service-worker')("/brain/sw.js"))
+//}
 
 app.use(require('./stores/pouchdb'))
 
 const main = require('./views/main')
-app.route('/', main)
-app.route('/:doc_id', main)
+
+app.route('brain', main)
+app.route('brain/', main)
+app.route('/brain', main)
+app.route('/brain/', main)
+app.route('/brain/:doc_id', main)
+
+console.log(app)
 
 module.exports = app.mount('body')

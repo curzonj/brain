@@ -16,7 +16,7 @@ function view(state, emit) {
   `;
 
   if (!state.params.doc_id) {
-    emit('replaceState', '/#index');
+    emit('replaceState', '#index');
     return html`
       <body class=${className}>
         <span>Redirecting ...</span>
@@ -46,7 +46,7 @@ function menuBar() {
 
   return html`
     <div class=${className}>
-      <a href="/#index">index</a>
+      <a href="#index">index</a>
     </div>
     <div style="clear:both"></div>
   `;

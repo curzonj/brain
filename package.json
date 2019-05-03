@@ -14,7 +14,7 @@
   },
   "scripts": {
     "deploy": "gh-pages -d dist",
-    "build": "bankai build index.js --base /brain",
+    "build": "bankai build index.js --base=/brain/",
     "create": "choo-scaffold",
     "inspect": "bankai inspect index.js",
     "start": "bankai start index.js",
