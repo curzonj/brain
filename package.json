@@ -22,17 +22,27 @@
     "test-deps": "dependency-check . && dependency-check . --extra --no-dev -i tachyons"
   },
   "dependencies": {
+    "babel-polyfill": "^6.26.0",
     "choo": "^6.13.3",
     "choo-service-worker": "^2.4.0",
+    "js-yaml": "^3.13.1",
+    "nanoscheduler": "^1.0.3",
+    "pouchdb": "^7.0.0",
     "sheetify": "^7.3.3",
     "tachyons": "^4.11.1"
   },
   "devDependencies": {
-    "gh-pages": "^2.0.1",
     "bankai": "^9.15.0",
     "choo-devtools": "^2.5.1",
     "choo-scaffold": "^1.2.0",
     "dependency-check": "^3.3.0",
+    "eslint": "^5.16.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-config-prettier": "^4.2.0",
+    "eslint-plugin-import": "^2.17.2",
+    "eslint-plugin-prettier": "^3.0.1",
+    "gh-pages": "^2.0.1",
+    "prettier": "^1.17.0",
     "standard": "^12.0.1"
   }
 }

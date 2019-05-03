@@ -9,15 +9,10 @@ properties:
   what:
     description: a concrete independent topic
     type: string
-  list_of:
-    description: list_of can refer to the first of topics, facets, thoughts. shouldn't have both topics and facets
-    type: string
   aka:
     type: array
     items:
       type: string
-  date:
-    $ref: "#/definitions/date"
   related:
     $ref: "#/definitions/related"
   links:
@@ -28,8 +23,8 @@ properties:
     $ref: "#/definitions/plainTextList"
   thoughts:
     $ref: "#/definitions/plainTextList"
-  topics:
-    $ref: "#/definitions/nestedTopicList"
+  sections:
+    $ref: "#/definitions/sectionList"
 definitions:
   related:
     oneOf:
@@ -81,53 +76,35 @@ definitions:
             type: string
           site:
             type: string
-  nestedTopicList:
+  sectionList:
     type: array
     items:
-      oneOf:
-        - $ref: "#/definitions/nestedTopic"
-        - description: plain text strings are concrete independent topic names
+      type: object
+      additionalProperties: false
+      properties:
+        about:
           type: string
-  nestedTopic:
-    type: object
-    additionalProperties: false
-    properties:
-      about:
-        description: about topics are concepts dependent on the parent concept
-        type: string
-      list_of:
-        description: list_of can refer to topics and list items. list_of topics are concepts dependent on the parent concept
-        type: string
-      aka:
-        type: array
-        items:
+        list_of:
+          description: refers to topics or list. Thoughts and related are always just that.
           type: string
-      props:
-        type: object
-      date:
-        $ref: "#/definitions/date"
-      related:
-        $ref: "#/definitions/related"
-      links:
-        $ref: "#/definitions/links"
-      books:
-        $ref: "#/definitions/books"
-      todo:
-        $ref: "#/definitions/plainTextList"
-      topics:
-        $ref: "#/definitions/nestedTopicList"
-      list:
-        description: Only to be used for plain text list items for list_of topics
-        $ref: "#/definitions/plainTextList"
-      thoughts:
-        $ref: "#/definitions/plainTextList"
+        related:
+          $ref: "#/definitions/related"
+        links:
+          $ref: "#/definitions/links"
+        books:
+          $ref: "#/definitions/books"
+        topics:
+          description: plain strings are anchors
+          $ref: "#/definitions/plainTextList"
+        list:
+          description: plain strings are just strings
+          $ref: "#/definitions/plainTextList"
+        thoughts:
+          $ref: "#/definitions/plainTextList"
   plainTextList:
     type: array
     items:
       $ref: "#/definitions/plainText"
-  date:
-    type: string
-    pattern: "^20\\d{2}-\\d{2}-\\d{2}$"
   plainText:
     oneOf:
       - type: string
@@ -139,6 +116,9 @@ definitions:
       # plain text attributes
       text:
         type: string
+
+      props:
+        type: object
 
       # Quote attributes
       about:
@@ -163,11 +143,12 @@ definitions:
 
       # Misc attributes
       date:
-        $ref: "#/definitions/date"
+        type: string
+        pattern: "^20\\d{2}-\\d{2}-\\d{2}$"
       more:
         $ref: "#/definitions/plainTextList"
       related:
-        description: related but not nested in the listed topics
+        description: related to the comment itself
         $ref: "#/definitions/related"
       links:
         $ref: "#/definitions/links"
