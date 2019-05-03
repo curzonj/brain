@@ -5,7 +5,7 @@
   "background_color": "#2196f3",
   "display": "fullscreen",
   "orientation": "portrait",
-  "Scope": "/",
+  "Scope": "/brain",
   "start_url": "/brain/index.html",
   "icons": [
     {
