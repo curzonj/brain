@@ -1,15 +1,2 @@
-self.addEventListener('fetch', function(event) {
-  const req = event.request
-  event.respondWith(
-    fetch(req).then(resp => {
-      if (req.method === "GET" && req.url.startsWith("http") && !req.headers.get("authorization")) {
-        const forStorage = resp.clone()
-        caches.open('v1').
-          then(cache => cache.put(req, forStorage)).
-          catch(console.log)
-      }
-
-      return resp;
-    }).catch(e => caches.match(req))
-  )
-});
+self.addEventListener("fetch",function(t){const e=t.request;t.respondWith(fetch(e).then(t=>{if("GET"===e.method&&e.url.startsWith("http")&&!e.headers.get("authorization")){const c=t.clone();caches.open("v1").then(t=>t.put(e,c)).catch(console.log)}return t}).catch(t=>caches.match(e)))});
+//# sourceMappingURL=bankai-service-worker.js.map
