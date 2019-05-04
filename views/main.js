@@ -84,7 +84,8 @@ const topCss = css`
   }
 
   :host h3.title {
-    font-size: 1.2em;
+    font-size: 1em;
+    font-weight: 200;
     margin-block-start: 14px;
     margin-block-end: 14px;
   }
@@ -334,9 +335,27 @@ function view(state, emit) {
   }
 
   function link(l) {
+    const mobile = (document.documentElement.clientWidth < 800);
     if (typeof l === "string") {
+      let target = l
+      let text = l
+
+
+      if (l.startsWith("https://en.wikipedia.org/wiki")) {
+        text = "Wikipedia: "+text.replace("https://en.wikipedia.org/wiki/", "").replace(/_/g, ' ')
+      } else if (l.indexOf("pinboard.in/u:curzonj/") !== -1) {
+        text = "Pinboard: "+(text.replace(/https?:\/\/pinboard.in\/u:curzonj\//, "").
+                             split("/").flatMap(l => l.replace(/^t:/, '')).
+                             join(", ")
+                            )
+        target = target.replace(/^http:\/\//, "https://")
+        if (mobile) {
+          target = target.replace("pinboard.in", "m.pinboard.in")
+        }
+      }
+
       return html`
-        <a target="_blank" href="${l}">${l}</a>
+        <a target="_blank" href="${target}">${text}</a>
       `;
     }
 
