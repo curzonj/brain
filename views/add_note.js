@@ -3,7 +3,8 @@ const css = require('sheetify');
 const yaml = require('js-yaml');
 const assert = require('assert');
 
-const body = require('./layout')
+const body = require('../lib/layout')
+const withMenu = require('../lib/menu')
 
 module.exports = body(view);
 
@@ -11,37 +12,42 @@ const formCss = css`
   :host textarea {
     width: 100%;
     height: 100vh;
+    font-size: 16px;
   }
 `;
 
 function view(state, emit) {
-  return html`
-    <form class=${formCss} id="note" onsubmit=${onsubmit}>
+  const menuItems = () => html`
+    <li><a href="#" onclick=${done}>done</a></li>
+  `;
+
+  const form = () => html`
+    <form class=${formCss}>
       <textarea
+        id="addNoteTextArea"
         name="text"
         onkeydown=${onkeydown}
         autocomplete=on
         autocapitalize=sentences
         required
         value=""></textarea>
-      <input type="submit" style="visibility:hidden;position:absolute"/>
     </form>
   `;
 
+  return withMenu(menuItems, form)()
+
   function onkeydown(e) {
-    if (e.which == 13 && (e.metaKey || e.shiftKey)) {
-      e.preventDefault();
-      addNote(this.form);
+    if (e.which == 13 && (e.metaKey || e.shiftKey)) done(e)
+  }
+
+  function done(e) {
+    e.preventDefault();
+
+    const value = document.getElementById("addNoteTextArea").value
+    if (value !== "") {
+      emit(state.events.pouchdb_note, value)
     }
-  }
 
-  function onsubmit(e) {
-    e.preventDefault()
-    addNote(e.currentTarget)
-  }
-
-  function addNote(form) {
-    emit(state.events.pouchdb_note, form.childNodes[0].value);
     emit('replaceState', '#index');
   }
 }

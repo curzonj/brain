@@ -3,9 +3,11 @@ const css = require('sheetify');
 const yaml = require('js-yaml');
 const assert = require('assert');
 
-const body = require('./layout')
+const body = require('../lib/layout')
+const withMenu = require('../lib/menu')
 
-module.exports = body(view);
+
+module.exports = body(withMenu(menuItems, view));
 
 const missingLinkCss = css`
   :host {
@@ -77,6 +79,19 @@ function renderMissing(key) {
       </section>
     </div>
   `;
+}
+
+function menuItems(state, emit) {
+  return html`
+    <li><a href="#index">index</a></li>
+    <li><a href="#add_note">add note</a></li>
+    <li><a href="#" onclick=${onclickSync}>sync</a></li>
+  `;
+
+  function onclickSync(e) {
+    e.preventDefault();
+    emit(state.events.pouchdb_sync)
+  }
 }
 
 function view(state, emit) {
