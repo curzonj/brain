@@ -12,7 +12,6 @@ const formCss = css`
   :host textarea {
     width: 100%;
     height: 100vh;
-    font-size: 16px;
   }
 `;
 

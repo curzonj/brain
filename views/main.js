@@ -34,6 +34,26 @@ const topCss = css`
     }
   }
 
+  :host span.subtitle {
+    font-size: 0.9em;
+    color: #c0c0c0;
+    font-weight: 300;
+  }
+
+  :host li a {
+    display: block;
+    padding-bottom: 0.2em;
+  }
+
+  :host ul {
+    margin-block-start: 14px;
+    margin-block-end: 0px;
+  }
+
+  :host li {
+    padding-bottom: 0.2em;
+  }
+
   :host section {
     margin: 5px;
     margin-bottom: 10px;
@@ -51,17 +71,25 @@ const topCss = css`
     color: #182955;
   }
 
+  :host div.header {
+    margin: .67em 0;
+  }
+
   :host h1.title {
-    font-size: 2.35em;
+    font-size: 1.65em;
+    margin: 0;
   }
 
   :host h2.title {
-    font-size: 1.65em;
+    font-size: 1.45em;
     margin-block-start: 0px;
+    margin-block-end: 14px;
   }
 
   :host h3.title {
-    font-size: 1.15em;
+    font-size: 1.2em;
+    margin-block-start: 14px;
+    margin-block-end: 14px;
   }
 
   :host dd.listDD {
@@ -94,6 +122,7 @@ function menuItems(state, emit) {
   }
 }
 
+const titleThreshold = 30;
 function view(state, emit) {
   if (state.loading) {
     return html`<span>Loading...</span>`;
@@ -106,18 +135,42 @@ function view(state, emit) {
     return renderMissing(key)
   }
 
-  delete doc._id;
-  delete doc._rev;
+  const docKeys = Object.keys(doc)
+  if (Object.keys(doc).length === 3) {
+    return renderMissing(heading(doc))
+  }
 
   return html`
     <div class=${topCss}>
-      <h1 class="title">${heading(doc)}</h1>
+      <div class="header">
+        <h1 class="title">${deriveTitle()}</h1>
+        ${subtitle()}
+      </div>
 
       ${renderNotes(doc)}
 
       ${doc.sections && doc.sections.flatMap(renderSection)}
     </div>
   `;
+
+  function deriveTitle() {
+    const str = heading(doc)
+    console.log(str.length)
+    if (doc.subtitle) return str
+    if (str.length > titleThreshold && str.length > doc._id.length) return doc._id.replace(/-/g, ' ')
+    return str
+  }
+  function subtitle() {
+    const str = heading(doc)
+    let text
+
+    if (doc.subtitle) text = doc.subtitle;
+    if (str.length > titleThreshold && str.length > doc._id.length) text = str
+
+    if (text) {
+      return html`<span class="subtitle">${text}</span>`
+    }
+  }
 
   function renderNotes(doc) {
     if (!doc.todo && !doc.links && !doc.thoughts && !doc.related) {
@@ -129,9 +182,7 @@ function view(state, emit) {
         ${title()}
         ${renderList(doc.todo, renderText, 'TODO')}
 
-        <dl>
-          ${rawKeys(doc).map(k => dtJSON(doc, k))}
-        </dl>
+        ${dt(doc)}
 
         ${renderRelated(doc)} ${renderList(doc.links, li => link(li), "Links")}
         ${renderList(doc.thoughts, renderText, 'Thoughts')}
@@ -149,13 +200,21 @@ function view(state, emit) {
         <h2 class="title">${heading(doc)}</h2>
         ${renderList(doc.topics, renderTopic)} ${renderList(doc.list, renderText)}
 
-        <dl>
-          ${rawKeys(doc).map(k => dtJSON(doc, k))}
-        </dl>
+        ${dt(doc)}
 
         ${renderRelated(doc)} ${renderList(doc.links, li => link(li), "Links")}
         ${renderList(doc.thoughts, renderText, 'Thoughts')}
       </section>
+    `;
+  }
+
+  function dt(doc) {
+    const list = rawKeys(doc)
+    if (list.length === 0) return
+    return html`
+      <dl>
+        ${list.map(k => dtJSON(doc, k))}
+      </dl>
     `;
   }
 
@@ -238,6 +297,8 @@ function view(state, emit) {
 
   function rawKeys(doc) {
     const formattedKeys = [
+      '_id',
+      '_rev',
       'what',
       'list_of',
       'related',
@@ -272,6 +333,7 @@ function view(state, emit) {
     if (typeof doc.related == "string") {
       return anchor(doc.related)
     }
+    return doc._id.replace(/-/g, ' ')
   }
 
   function link(l) {
