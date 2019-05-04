@@ -19,10 +19,6 @@ const missingLinkCss = css`
 `;
 
 const topCss = css`
-  :host {
-
-  }
-
   @media screen and (min-width: 800px) {
     :host section {
       margin: 5px;
@@ -45,13 +41,19 @@ const topCss = css`
     font-weight: 300;
   }
 
+  :host .anchorLink {
+    font-size: 1.2em;
+    margin-bottom: 0.6em;
+    display: block;
+  }
+
   :host ul {
     margin-block-start: 14px;
     margin-block-end: 0px;
   }
 
   :host li {
-    padding-bottom: 0.4em;
+    margin-bottom: 0.4em;
   }
 
   :host section {
@@ -145,9 +147,10 @@ function view(state, emit) {
         ${subtitle()}
       </div>
 
-      ${renderNotes(doc)}
+      ${renderTODO(doc)}
 
       ${doc.sections && doc.sections.flatMap(renderSection)}
+      ${renderNotes(doc)}
     </div>
   `;
 
@@ -170,15 +173,26 @@ function view(state, emit) {
     }
   }
 
+  function renderTODO(doc) {
+    if (!doc.todo) {
+      return
+    }
+
+    return html`
+      <section>
+        ${renderList(doc.todo, renderText, 'TODO')}
+      </section>
+    `
+  }
+
   function renderNotes(doc) {
-    if (!doc.todo && !doc.links && !doc.thoughts && !doc.related) {
+    if (!doc.links && !doc.thoughts && !doc.related) {
       return
     }
 
     return html`
       <section>
         ${title()}
-        ${renderList(doc.todo, renderText, 'TODO')}
 
         ${dt(doc)}
 
@@ -367,7 +381,7 @@ function view(state, emit) {
       return html`<span class=${missingLinkCss}>${l}</span>`;
     }
 
-    return html`<a href="#${encodeURI(l)}">${l}</a>`;
+    return html`<a class="anchorLink" href="#${encodeURI(l)}">${l}</a>`;
   }
 
   function convertLinks(doc) {
