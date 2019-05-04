@@ -47,6 +47,6 @@ function view(state, emit) {
       emit(state.events.pouchdb_note, value)
     }
 
-    emit('replaceState', '#index');
+    emit('replaceState', '#inbox');
   }
 }

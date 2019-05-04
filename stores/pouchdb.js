@@ -32,6 +32,7 @@ function store(state, e) {
       const doc = await db.get("inbox")
       doc.thoughts.unshift(value)
       state.pages.inbox = doc
+      e.emit(state.events.RENDER);
       await db.put(doc)
     }
 
