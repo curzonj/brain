@@ -19,6 +19,4 @@ const main = require('./views/main')
 app.route('/brain', main)
 app.route('/brain/:doc_id', main)
 
-console.log(app)
-
 module.exports = app.mount('body')
