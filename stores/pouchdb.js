@@ -55,7 +55,7 @@ function store(state, e) {
       const allDocs = {};
       rows.forEach(({ doc }) => {
         allDocs[doc._id] = doc;
-        const spaces = doc._id.replace('-', ' ')
+        const spaces = doc._id.replace(/-/g, ' ')
         if (spaces !== doc._id) {
           allDocs[spaces] = doc
         }
