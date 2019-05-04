@@ -12,7 +12,9 @@ module.exports = body(withMenu(menuItems, view));
 const missingLinkCss = css`
   :host {
     font-style: italic;
-    font-weight: lighter;
+    font-weight: 300;
+    text-decoration: none;
+    color: #5778d8;
   }
 `;
 
@@ -43,18 +45,13 @@ const topCss = css`
     font-weight: 300;
   }
 
-  :host li a {
-    display: block;
-    padding-bottom: 0.2em;
-  }
-
   :host ul {
     margin-block-start: 14px;
     margin-block-end: 0px;
   }
 
   :host li {
-    padding-bottom: 0.2em;
+    padding-bottom: 0.4em;
   }
 
   :host section {
@@ -347,10 +344,11 @@ function view(state, emit) {
   }
 
   function anchor(l) {
-    const missingTarget = !state.pages[l]
-    return html`
-      <a class="${missingTarget ? missingLinkCss : ''}" href="#${encodeURI(l)}">${l}</a>
-    `;
+    if(!state.pages[l]) {
+      return html`<span class=${missingLinkCss}>${l}</span>`;
+    }
+
+    return html`<a href="#${encodeURI(l)}">${l}</a>`;
   }
 
   function convertLinks(doc) {
