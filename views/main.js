@@ -21,14 +21,17 @@ const topCss = css`
 
   }
 
-  @media screen and (min-width: 960px) {
+  @media screen and (min-width: 800px) {
     :host section {
+      margin: 5px;
+      box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.3);
+      border: 1px solid #ffffff;
       padding: 28px 42px 42px 42px;
       border-radius: 2px;
     }
   }
 
-  @media screen and (max-width: 960px) {
+  @media screen and (max-width: 800px) {
     :host section {
       padding: 14px;
     }
@@ -55,11 +58,8 @@ const topCss = css`
   }
 
   :host section {
-    margin: 5px;
-    margin-bottom: 10px;
-    box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.3);
+    margin-bottom: 16px;
     background-color: #ffffff;
-    border: 1px solid #ffffff;
   }
 
   :host .title {
@@ -72,7 +72,7 @@ const topCss = css`
   }
 
   :host div.header {
-    margin: .67em 0;
+    margin: 1em;
   }
 
   :host h1.title {
