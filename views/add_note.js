@@ -3,8 +3,8 @@ const css = require('sheetify');
 const yaml = require('js-yaml');
 const assert = require('assert');
 
-const body = require('../lib/layout')
-const withMenu = require('../lib/menu')
+const body = require('../lib/layout');
+const withMenu = require('../lib/menu');
 
 module.exports = body(view);
 
@@ -26,25 +26,26 @@ function view(state, emit) {
         id="addNoteTextArea"
         name="text"
         onkeydown=${onkeydown}
-        autocomplete=on
-        autocapitalize=sentences
+        autocomplete="on"
+        autocapitalize="sentences"
         required
-        value=""></textarea>
+        value=""
+      ></textarea>
     </form>
   `;
 
-  return withMenu(menuItems, form)()
+  return withMenu(menuItems, form)();
 
   function onkeydown(e) {
-    if (e.which == 13 && (e.metaKey || e.shiftKey)) done(e)
+    if (e.which == 13 && (e.metaKey || e.shiftKey)) done(e);
   }
 
   function done(e) {
     e.preventDefault();
 
-    const value = document.getElementById("addNoteTextArea").value
-    if (value !== "") {
-      emit(state.events.pouchdb_note, value)
+    const { value } = document.getElementById('addNoteTextArea');
+    if (value !== '') {
+      emit(state.events.pouchdb_note, value);
     }
 
     emit('replaceState', '#inbox');

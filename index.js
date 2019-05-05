@@ -29,6 +29,12 @@ app.use((state, emitter) => {
 
 app.use(require('./stores/pouchdb'))
 
+// Only useful in development because it won't match in prod
+app.route('/', (state,emit) => {
+  emit('replaceState', '/brain#index');
+  return html`<body>Redirecting ...</body>`;
+})
+
 app.route('/brain', (state,emit) => {
   emit('replaceState', '#index');
   return html`<body>Redirecting ...</body>`;

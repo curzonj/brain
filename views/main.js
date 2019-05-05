@@ -3,9 +3,8 @@ const css = require('sheetify');
 const yaml = require('js-yaml');
 const assert = require('assert');
 
-const body = require('../lib/layout')
-const withMenu = require('../lib/menu')
-
+const body = require('../lib/layout');
+const withMenu = require('../lib/menu');
 
 module.exports = body(withMenu(menuItems, view));
 
@@ -118,26 +117,28 @@ function menuItems(state, emit) {
 
   function onclickSync(e) {
     e.preventDefault();
-    emit(state.events.pouchdb_sync)
+    emit(state.events.pouchdb_sync);
   }
 }
 
 const titleThreshold = 30;
 function view(state, emit) {
   if (state.loading) {
-    return html`<span>Loading...</span>`;
+    return html`
+      <span>Loading...</span>
+    `;
   }
 
-  const key = state.params.doc_id
+  const key = state.params.doc_id;
   const doc = state.pages[key];
 
   if (!doc) {
-    return renderMissing(key)
+    return renderMissing(key);
   }
 
-  const docKeys = Object.keys(doc)
+  const docKeys = Object.keys(doc);
   if (Object.keys(doc).length === 3) {
-    return renderMissing(heading(doc))
+    return renderMissing(heading(doc));
   }
 
   return html`
@@ -147,62 +148,62 @@ function view(state, emit) {
         ${subtitle()}
       </div>
 
-      ${renderTODO(doc)}
-
-      ${doc.sections && doc.sections.flatMap(renderSection)}
+      ${renderTODO(doc)} ${doc.sections && doc.sections.flatMap(renderSection)}
       ${renderNotes(doc)}
     </div>
   `;
 
   function deriveTitle() {
-    const str = heading(doc)
-    console.log(str.length)
-    if (doc.subtitle) return str
-    if (str.length > titleThreshold && str.length > doc._id.length) return doc._id.replace(/-/g, ' ')
-    return str
+    const str = heading(doc);
+    if (doc.subtitle) return str;
+    if (str.length > titleThreshold && str.length > doc._id.length)
+      return doc._id.replace(/-/g, ' ');
+    return str;
   }
   function subtitle() {
-    const str = heading(doc)
-    let text
+    const str = heading(doc);
+    let text;
 
     if (doc.subtitle) text = doc.subtitle;
-    if (str.length > titleThreshold && str.length > doc._id.length) text = str
+    if (str.length > titleThreshold && str.length > doc._id.length) text = str;
 
     if (text) {
-      return html`<span class="subtitle">${text}</span>`
+      return html`
+        <span class="subtitle">${text}</span>
+      `;
     }
   }
 
   function renderTODO(doc) {
     if (!doc.todo) {
-      return
+      return;
     }
 
     return html`
       <section>
         ${renderList(doc.todo, renderText, 'TODO')}
       </section>
-    `
+    `;
   }
 
   function renderNotes(doc) {
     if (!doc.links && !doc.thoughts && !doc.related) {
-      return
+      return;
     }
 
     return html`
       <section>
-        ${title()}
-
-        ${dt(doc)}
-
-        ${renderRelated(doc)} ${renderList(doc.links, li => link(li), "Links")}
+        ${title()} ${dt(doc)} ${renderRelated(doc)}
+        ${renderList(doc.links, li => link(li), 'Links')}
         ${renderList(doc.thoughts, renderText, 'Thoughts')}
       </section>
-    `
+    `;
 
     function title() {
-      if (doc.sections) return html`<h2 class="title">Notes</h2>`;
+      if (doc.sections)
+        return html`
+          <h2 class="title">Notes</h2>
+        `;
     }
   }
 
@@ -210,19 +211,17 @@ function view(state, emit) {
     return html`
       <section>
         <h2 class="title">${heading(doc)}</h2>
-        ${renderList(doc.topics, renderTopic)} ${renderList(doc.list, renderText)}
-
-        ${dt(doc)}
-
-        ${renderRelated(doc)} ${renderList(doc.links, li => link(li), "Links")}
+        ${renderList(doc.topics, renderTopic)}
+        ${renderList(doc.list, renderText)} ${dt(doc)} ${renderRelated(doc)}
+        ${renderList(doc.links, li => link(li), 'Links')}
         ${renderList(doc.thoughts, renderText, 'Thoughts')}
       </section>
     `;
   }
 
   function dt(doc) {
-    const list = rawKeys(doc)
-    if (list.length === 0) return
+    const list = rawKeys(doc);
+    if (list.length === 0) return;
     return html`
       <dl>
         ${list.map(k => dtJSON(doc, k))}
@@ -235,8 +234,13 @@ function view(state, emit) {
       return;
     }
 
-    if (!doc.what && !doc.about && !doc.list_of && typeof doc.related === "string") {
-      return
+    if (
+      !doc.what &&
+      !doc.about &&
+      !doc.list_of &&
+      typeof doc.related === 'string'
+    ) {
+      return;
     }
 
     const list = typeof doc.related === 'string' ? [doc.related] : doc.related;
@@ -248,7 +252,45 @@ function view(state, emit) {
     if (typeof li === 'string') {
       return li;
     }
-    return JSON.stringify(li);
+    const done = ['links'];
+    function text() {
+      if (!li.text) {
+        return;
+      }
+
+      done.push('text');
+      return html`
+        <span>${li.text}</span>
+      `;
+    }
+
+    function related() {
+      if (!li.related) {
+        return;
+      }
+
+      done.push('related');
+      // The anchor will display in block mode
+      if (li.related.flatMap) {
+        return renderRelated(li);
+      }
+      return anchor(li.related);
+    }
+
+    function dtTheRest() {
+      const list = Object.keys(li).filter(k => done.indexOf(k) === -1);
+      if (list.length === 0) return;
+      return html`
+        <dl>
+          ${list.map(k => dtJSON(li, k))}
+        </dl>
+      `;
+    }
+
+    return html`
+      ${text()} ${related()} ${renderList(li.links, li => link(li), 'Links')}
+      ${dtTheRest()}
+    `;
   }
 
   function renderTopic(li) {
@@ -302,7 +344,7 @@ function view(state, emit) {
     if (!v) return;
 
     return html`
-      <dt>${field}</dt>
+      <dt>${field}:</dt>
       <dd className=${v.flatMap ? 'listDD' : ''}>${fn(v)}</dd>
     `;
   }
@@ -313,6 +355,7 @@ function view(state, emit) {
       '_rev',
       'what',
       'list_of',
+      'text',
       'related',
       'links',
       'sections',
@@ -332,56 +375,105 @@ function view(state, emit) {
       return listField(doc, field, li => renderText(li));
     }
 
+    let value = doc[field];
+
+    if (typeof value !== 'string') {
+      value = JSON.stringify(value);
+    } else if (value.startsWith('http')) {
+      value = link(value);
+    }
+
     return html`
-      <dt>${field}</dt>
-      <dd>${JSON.stringify(doc[field])}</dd>
+      <dt>${field}:</dt>
+      <dd>${value}</dd>
     `;
   }
 
   function heading(doc) {
     if (doc.what) return doc.what;
     if (doc.about) return doc.about;
-    if (doc.list_of) return `list of ${doc.list_of}`;
-    if (typeof doc.related == "string") {
-      return anchor(doc.related)
+    if (doc.list_of) return doc.list_of;
+    if (typeof doc.related === 'string') {
+      return anchor(doc.related);
     }
-    return doc._id.replace(/-/g, ' ')
+    return doc._id.replace(/-/g, ' ');
   }
 
-  function link(l) {
-    const mobile = (document.documentElement.clientWidth < 800);
-    if (typeof l === "string") {
-      let target = l
-      let text = l
+  function link(obj) {
+    const mobile = document.documentElement.clientWidth < 800;
+    const done = ['link'];
 
+    function anchor() {
+      if (typeof obj === "string" || obj.link) {
+        let target = obj;
+        let text = obj;
 
-      if (l.startsWith("https://en.wikipedia.org/wiki")) {
-        text = "Wikipedia: "+text.replace("https://en.wikipedia.org/wiki/", "").replace(/_/g, ' ')
-      } else if (l.indexOf("pinboard.in/u:curzonj/") !== -1) {
-        text = "Pinboard: "+(text.replace(/https?:\/\/pinboard.in\/u:curzonj\//, "").
-                             split("/").flatMap(l => l.replace(/^t:/, '')).
-                             join(", ")
-                            )
-        target = target.replace(/^http:\/\//, "https://")
-        if (mobile) {
-          target = target.replace("pinboard.in", "m.pinboard.in")
+        if (typeof obj !== 'string') {
+          target = obj.link;
+          text = obj.link;
         }
-      }
 
+        if (text.startsWith('https://en.wikipedia.org/wiki')) {
+          text = `Wikipedia: ${text
+            .replace('https://en.wikipedia.org/wiki/', '')
+            .replace(/_/g, ' ')}`;
+        } else if (text.indexOf('pinboard.in/u:curzonj/') !== -1) {
+          text = `Pinboard: ${text
+            .replace(/https?:\/\/pinboard.in\/u:curzonj\//, '')
+            .split('/')
+            .flatMap(l => l.replace(/^t:/, ''))
+            .join(', ')}`;
+          target = target.replace(/^http:\/\//, 'https://');
+          if (mobile) {
+            target = target.replace('pinboard.in', 'm.pinboard.in');
+          }
+        }
+
+        return html`
+          <a target="_blank" href="${target}">${text}</a>
+        `;
+      }
+      if (obj.search && !obj.site) {
+        done.push('search');
+        return html`
+          <a
+            target="_blank"
+            href="https://google.com/search?q=${encodeURIComponent(obj.search)}"
+            >Google: ${obj.search}</a
+          >
+        `;
+      }
+    }
+
+    function dtTheRest() {
+      if (typeof obj === "string") {
+        return
+      }
+      const list = Object.keys(obj).filter(k => done.indexOf(k) === -1);
+      if (list.length === 0) return;
       return html`
-        <a target="_blank" href="${target}">${text}</a>
+        <dl>
+          ${list.map(k => dtJSON(obj, k))}
+        </dl>
       `;
     }
 
-    return JSON.stringify(l)
+    return html`
+      ${anchor()}
+      ${dtTheRest()}
+    `;
   }
 
   function anchor(l) {
-    if(!state.pages[l]) {
-      return html`<span class=${missingLinkCss}>${l}</span>`;
+    if (!state.pages[l]) {
+      return html`
+        <span class=${missingLinkCss}>${l}</span>
+      `;
     }
 
-    return html`<a class="anchorLink" href="#${encodeURI(l)}">${l}</a>`;
+    return html`
+      <a class="anchorLink" href="#${encodeURI(l)}">${l}</a>
+    `;
   }
 
   function convertLinks(doc) {
@@ -393,12 +485,6 @@ function view(state, emit) {
 
         if (l.link) {
           l.link = link(l.link);
-        }
-
-        if (l.search && !l.site) {
-          l.search = `<a target="_blank" href="https://google.com/search?q=${encodeURIComponent(
-            l.search
-          )}">${l.search}</a>`;
         }
 
         return l;
