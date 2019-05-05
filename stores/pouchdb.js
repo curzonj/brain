@@ -56,12 +56,13 @@ function store(state, e) {
       const allDocs = {};
       rows.forEach(({ doc }) => {
         allDocs[doc._id] = doc;
-        const spaces = doc._id.replace(/-/g, ' ')
-        if (spaces !== doc._id) {
-          allDocs[spaces] = doc
-        }
+        allDocs[doc._id.replace(/-/g, ' ')] = doc
+
         if (doc.aka) {
-          doc.aka.forEach(k => { allDocs[k] = doc })
+          doc.aka.forEach(k => {
+            allDocs[k] = doc
+            allDocs[k.replace(/-/g, ' ')] = doc
+          })
         }
 
         if (doc.what) {
