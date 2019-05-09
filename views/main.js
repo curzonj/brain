@@ -297,7 +297,7 @@ function view(state, emit) {
     if (typeof li === 'string') {
       return anchor(li);
     }
-    return JSON.stringify(li);
+    return renderText(li);
   }
 
   function renderList(list, fn, heading) {
@@ -401,7 +401,7 @@ function view(state, emit) {
 
   function link(obj) {
     const mobile = document.documentElement.clientWidth < 800;
-    const done = ['link'];
+    const done = ['link', 'title'];
 
     function anchor() {
       if (typeof obj === "string" || obj.link) {
@@ -410,7 +410,7 @@ function view(state, emit) {
 
         if (typeof obj !== 'string') {
           target = obj.link;
-          text = obj.link;
+          text = obj.title || obj.link;
         }
 
         if (text.startsWith('https://en.wikipedia.org/wiki')) {
