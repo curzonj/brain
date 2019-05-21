@@ -20,7 +20,17 @@ properties:
   books:
     $ref: "#/definitions/books"
   todo:
-    $ref: "#/definitions/plainTextList"
+    type: array
+    items:
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties: false
+          properties:
+            text:
+              type: string
+            related:
+              type: string
   thoughts:
     $ref: "#/definitions/plainTextList"
   sections:
@@ -119,6 +129,13 @@ definitions:
 
       props:
         type: object
+        additionalProperties: false
+        required: [ quantity ]
+        properties:
+          # plain text attributes
+          quantity:
+            type: string
+
 
       # Quote attributes
       about:
@@ -152,5 +169,3 @@ definitions:
         $ref: "#/definitions/related"
       links:
         $ref: "#/definitions/links"
-      books:
-        $ref: "#/definitions/books"
