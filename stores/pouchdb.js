@@ -11,10 +11,6 @@ function store(state, e) {
     const db = new PouchDB('wiki');
 
     reg('note', addNote, state, e)
-    reg('sync', async () => {
-      state.pages = await sync()
-      e.emit(state.events.RENDER);
-    }, state, e)
 
     if (!populateAuth()) {
       return;

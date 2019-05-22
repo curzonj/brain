@@ -112,13 +112,7 @@ function menuItems(state, emit) {
   return html`
     <li><a href="#index">index</a></li>
     <li><a href="#add_note">add note</a></li>
-    <li><a href="#" onclick=${onclickSync}>sync</a></li>
   `;
-
-  function onclickSync(e) {
-    e.preventDefault();
-    emit(state.events.pouchdb_sync);
-  }
 }
 
 const titleThreshold = 30;
