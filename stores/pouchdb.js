@@ -23,10 +23,34 @@ function store(state, e) {
     const config = JSON.parse(localStorage.couchdb_target);
     const remoteDb = new PouchDB(config.url, { auth: config.auth });
 
-    state.pages = await sync();
-    state.loading = false;
+    db.sync(remoteDb, {
+      live: true, retry: true
+    }).on('change', function (change) {
+      console.log("pouchdb:change", change)
+    }).on('paused', function (info) {
+      console.log("pouchdb:paused", info)
+      updatePages()
+    }).on('active', function (info) {
+      console.log("pouchdb:active", info)
+    }).on('error', function (err) {
+      console.log("pouchdb:error", err)
+      blockUpdates(err)
+    }).on('denied', function(err) {
+      console.log('pouchdb:denied', err);
+      blockUpdates(err)
+    })
 
-    e.emit(state.events.RENDER);
+    function blockUpdates(err) {
+      state.pouchdbBroken = JSON.stringify(err)
+      e.emit(state.events.RENDER);
+    }
+
+    async function updatePages() {
+      state.pages = await buildPages();
+      state.loading = false;
+
+      e.emit(state.events.RENDER);
+    }
 
     async function addNote(value) {
       const doc = await db.get("inbox")
@@ -36,19 +60,7 @@ function store(state, e) {
       await db.put(doc)
     }
 
-    async function sync() {
-      await db
-        .sync(remoteDb, {
-          live: false,
-          retry: false,
-        })
-        .on('denied', function(err) {
-          console.log('denied', err);
-        })
-        .on('error', function(err) {
-          console.log('error', err);
-        });
-
+    async function buildPages() {
       const { rows } = await db.allDocs({
         include_docs: true,
       });
