@@ -50,7 +50,7 @@ function store(state, e) {
 
     async function addNote(value) {
       const doc = await db.get("inbox")
-      doc.thoughts.unshift(value)
+      doc.thoughts.unshift(value.trim())
       state.pages.inbox = doc
       e.emit(state.events.RENDER);
       await db.put(doc)
