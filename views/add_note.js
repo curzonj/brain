@@ -45,8 +45,14 @@ function view(state, emit) {
 
     const { value } = document.getElementById('addNoteTextArea');
     if (value !== '') {
+      // TODO in the future when I have canonical doc_ids, I won't
+      // have to do this magic
+      const key = state.params.doc_id;
+      const doc = state.pages[key];
+      const doc_id = doc._id.split("/").slice(2).join('/')
+
       emit(state.events.pouchdb_note, {
-        doc_id: state.params.doc_id,
+        doc_id,
         value
       });
     }

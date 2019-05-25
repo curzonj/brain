@@ -63,6 +63,7 @@ function store(state, e) {
       const text = value.trim()
       const doc = {
         _id: `$/queue/${doc_id}/${nonce}`,
+        topic_id: doc_id,
         text
       }
 
@@ -71,11 +72,10 @@ function store(state, e) {
       e.emit(state.events.RENDER);
     }
 
-    function addItemToPageQueue(pages, { _id, text }) {
-      const pageName = _id.split("/")[2]
-      let page = pages[pageName]
+    function addItemToPageQueue(pages, { topic_id, text }) {
+      let page = pages[topic_id]
       if (!page) {
-        page = pages[pageName] = {}
+        page = pages[topic_id] = {}
       }
       if (!page.queue) {
         page.queue = []
