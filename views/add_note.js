@@ -45,9 +45,12 @@ function view(state, emit) {
 
     const { value } = document.getElementById('addNoteTextArea');
     if (value !== '') {
-      emit(state.events.pouchdb_note, value);
+      emit(state.events.pouchdb_note, {
+        doc_id: state.params.doc_id,
+        value
+      });
     }
 
-    emit('replaceState', '#inbox');
+    emit('replaceState', '#'+state.params.doc_id);
   }
 }

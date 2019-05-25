@@ -40,7 +40,7 @@ app.route('/brain', (state,emit) => {
   return html`<body>Redirecting ...</body>`;
 })
 
-app.route('/brain/add_note', require('./views/add_note'))
+app.route('/brain/:doc_id/add_note', require('./views/add_note'))
 app.route('/brain/:doc_id', require('./views/main'))
 
 module.exports = app.mount('body')

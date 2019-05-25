@@ -111,7 +111,7 @@ function renderMissing(key) {
 function menuItems(state, emit) {
   return html`
     <li><a href="#index">index</a></li>
-    <li><a href="#add_note">add note</a></li>
+    <li><a href=${"#"+state.params.doc_id+"/add_note"}>add note</a></li>
   `;
 }
 

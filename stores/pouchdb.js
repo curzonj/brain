@@ -58,13 +58,12 @@ function store(state, e) {
         return text;
     }
 
-    async function addNote(input) {
+    async function addNote({ doc_id, value }) {
       const nonce = `${Date.now()}-${randomString(8)}`
-      const value = input.trim()
-      const pageName = "inbox"
+      const text = value.trim()
       const doc = {
-        _id: `$/queue/${pageName}/${nonce}`,
-        text: value
+        _id: `$/queue/${doc_id}/${nonce}`,
+        text
       }
 
       db.put(doc)
