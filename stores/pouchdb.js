@@ -129,22 +129,21 @@ function store(state, e) {
 
       const pages = {};
       docs.forEach(doc => {
-        if (!doc.id) {
-          console.log(doc)
-          return
-        }
         pages[doc.id] = doc;
-        pages[doc.id.replace(/-/g, ' ')] = doc
 
-        if (doc.aka) {
-          doc.aka.forEach(k => {
-            pages[k] = doc
-            pages[k.replace(/-/g, ' ')] = doc
-          })
-        }
+        if (doc.id.indexOf("/") === -1) {
+          pages[doc.id.replace(/-/g, ' ')] = doc
 
-        if (doc.what) {
-          pages[doc.what] = doc;
+          if (doc.aka) {
+            doc.aka.forEach(k => {
+              pages[k] = doc
+              pages[k.replace(/-/g, ' ')] = doc
+            })
+          }
+
+          if (doc.what) {
+            pages[doc.what] = doc;
+          }
         }
       });
 

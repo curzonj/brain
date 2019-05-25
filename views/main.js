@@ -143,10 +143,19 @@ function view(state, emit) {
       </div>
 
       ${renderTODO(doc)}
-      ${doc.sections && doc.sections.map(renderSection)}
+      ${renderSections(doc)}
       ${renderNotes(doc)}
     </div>
   `;
+
+  function renderSections(doc) {
+    if (!doc.sections) return
+
+    return doc.sections.
+      map(s => state.pages[`${doc.id}/${s}`]).
+      filter(s => !!s).
+      map(renderSection)
+  }
 
   function deriveTitle() {
     const str = doc.what;
@@ -188,7 +197,9 @@ function view(state, emit) {
 
     return html`
       <section>
-        ${title()} ${dt(doc)} ${renderRelated(doc)}
+        ${title()}
+        ${dt(doc)}
+        ${renderRelated(doc)}
         ${renderList(doc.links, li => link(li), 'Links')}
         ${renderList(doc.thoughts, renderText, 'Thoughts')}
         ${renderList(doc.queue, renderText, 'Inbox')}
@@ -208,7 +219,9 @@ function view(state, emit) {
       <section>
         <h2 class="title">${doc.what}</h2>
         ${renderList(doc.topics, renderTopic)}
-        ${renderList(doc.list, renderText)} ${dt(doc)} ${renderRelated(doc)}
+        ${renderList(doc.list, renderText)}
+        ${dt(doc)}
+        ${renderRelated(doc)}
         ${renderList(doc.links, li => link(li), 'Links')}
         ${renderList(doc.thoughts, renderText, 'Thoughts')}
       </section>

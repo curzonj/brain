@@ -19,32 +19,30 @@ definitions:
         items:
           type: string
       related:
-        $ref: "#/definitions/nodeList"
+        $ref: "#/definitions/textNodeList"
       links:
         $ref: "#/definitions/links"
       books:
         $ref: "#/definitions/books"
       todo:
-        type: array
-        items:
-          oneOf:
-            - type: string
-            - type: object
-              additionalProperties: false
-              properties:
-                text:
-                  type: string
-                related:
-                  type: string
+        $ref: "#/definitions/textNodeList"
+      topics:
+        description: plain strings are anchors
+        $ref: "#/definitions/plainTextList"
+      list:
+        description: plain strings are just strings
+        $ref: "#/definitions/plainTextList"
       thoughts:
         $ref: "#/definitions/plainTextList"
       sections:
-        $ref: "#/definitions/sectionList"
+        type: array
+        items:
+          type: string
       queue:
         type: array
         items:
           type: string
-  nodeList:
+  textNodeList:
     type: array
     items:
       oneOf:
@@ -56,10 +54,16 @@ definitions:
         - type: object
           additionalProperties: false
           properties:
-            id:
-              type: string
             label:
               type: string
+            id:
+              type: string
+            link:
+              type: string
+              format: uri
+          dependencies:
+            label: [id]
+            link: [id]
         - type: object
           additionalProperties: false
           properties:
@@ -67,12 +71,28 @@ definitions:
               type: string
             text:
               type: string
-  related:
-    oneOf:
-      - type: string
-      - type: array
+          dependencies:
+            related: [text]
+  topicNode:
+    type: object
+    require:
+      - what
+    properties:
+      what:
+        description: basically a title
+        type: string
+      description:
+        type: string
+      list:
+        $ref: "#/definitions/textNodeList"
+      nested:
+        type: array
         items:
           type: string
+    additionalProperties:
+      oneOf:
+        - type: string
+        - $ref: "#/definitions/textNodeList"
   books:
     type: array
     items:
@@ -117,30 +137,6 @@ definitions:
             type: string
           site:
             type: string
-  sectionList:
-    type: array
-    items:
-      type: object
-      additionalProperties: false
-      required:
-        - what
-      properties:
-        what:
-          type: string
-        related:
-          $ref: "#/definitions/nodeList"
-        links:
-          $ref: "#/definitions/links"
-        books:
-          $ref: "#/definitions/books"
-        topics:
-          description: plain strings are anchors
-          $ref: "#/definitions/plainTextList"
-        list:
-          description: plain strings are just strings
-          $ref: "#/definitions/plainTextList"
-        thoughts:
-          $ref: "#/definitions/plainTextList"
   plainTextList:
     type: array
     items:
@@ -185,6 +181,10 @@ definitions:
         $ref: "#/definitions/plainTextList"
       related:
         description: related to the comment itself
-        $ref: "#/definitions/related"
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
       links:
         $ref: "#/definitions/links"
