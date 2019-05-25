@@ -131,8 +131,8 @@ function view(state, emit) {
   }
 
   const docKeys = Object.keys(doc);
-  if (Object.keys(doc).length === 3) {
-    return renderMissing(heading(doc));
+  if (Object.keys(doc).length === 1) {
+    return renderMissing(doc.what);
   }
 
   return html`
@@ -142,20 +142,21 @@ function view(state, emit) {
         ${subtitle()}
       </div>
 
-      ${renderTODO(doc)} ${doc.sections && doc.sections.flatMap(renderSection)}
+      ${renderTODO(doc)}
+      ${doc.sections && doc.sections.map(renderSection)}
       ${renderNotes(doc)}
     </div>
   `;
 
   function deriveTitle() {
-    const str = heading(doc);
+    const str = doc.what;
     if (doc.subtitle) return str;
-    if (str.length > titleThreshold && str.length > doc._id.length)
-      return doc._id.replace(/-/g, ' ');
+    if (str.length > titleThreshold && str.length > doc.id.length)
+      return doc.id.replace(/-/g, ' ');
     return str;
   }
   function subtitle() {
-    const str = heading(doc);
+    const str = doc.what;
     let text;
 
     if (doc.subtitle) text = doc.subtitle;
@@ -205,7 +206,7 @@ function view(state, emit) {
   function renderSection(doc) {
     return html`
       <section>
-        <h2 class="title">${heading(doc)}</h2>
+        <h2 class="title">${doc.what}</h2>
         ${renderList(doc.topics, renderTopic)}
         ${renderList(doc.list, renderText)} ${dt(doc)} ${renderRelated(doc)}
         ${renderList(doc.links, li => link(li), 'Links')}
@@ -225,22 +226,7 @@ function view(state, emit) {
   }
 
   function renderRelated(doc) {
-    if (!doc.related) {
-      return;
-    }
-
-    if (
-      !doc.what &&
-      !doc.about &&
-      !doc.list_of &&
-      typeof doc.related === 'string'
-    ) {
-      return;
-    }
-
-    const list = typeof doc.related === 'string' ? [doc.related] : doc.related;
-
-    return renderList(list, anchor, 'Related');
+    return renderList(doc.related, anchor, 'Related');
   }
 
   function renderText(li) {
@@ -349,7 +335,6 @@ function view(state, emit) {
       '_id',
       '_rev',
       'what',
-      'list_of',
       'text',
       'related',
       'links',
@@ -358,7 +343,6 @@ function view(state, emit) {
       'topics',
       'thoughts',
       'queue',
-      'about',
       'todo',
     ];
     return Object.keys(doc).filter(k => formattedKeys.indexOf(k) === -1);
@@ -383,16 +367,6 @@ function view(state, emit) {
       <dt>${field}:</dt>
       <dd>${value}</dd>
     `;
-  }
-
-  function heading(doc) {
-    if (doc.what) return doc.what;
-    if (doc.about) return doc.about;
-    if (doc.list_of) return doc.list_of;
-    if (typeof doc.related === 'string') {
-      return anchor(doc.related);
-    }
-    return "Unknown"
   }
 
   function link(obj) {

@@ -8,6 +8,8 @@ definitions:
     description: "represents a range of types of things including: concepts, entities, topics"
     type: object
     additionalProperties: false
+    required:
+      - what
     properties:
       what:
         description: a concrete independent topic
@@ -17,9 +19,7 @@ definitions:
         items:
           type: string
       related:
-        oneOf:
-          - type: string
-          - $ref: "#/definitions/nodeList"
+        $ref: "#/definitions/nodeList"
       links:
         $ref: "#/definitions/links"
       books:
@@ -122,14 +122,13 @@ definitions:
     items:
       type: object
       additionalProperties: false
+      required:
+        - what
       properties:
-        about:
-          type: string
-        list_of:
-          description: refers to topics or list. Thoughts and related are always just that.
+        what:
           type: string
         related:
-          $ref: "#/definitions/related"
+          $ref: "#/definitions/nodeList"
         links:
           $ref: "#/definitions/links"
         books:

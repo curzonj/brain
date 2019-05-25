@@ -8,7 +8,13 @@ function store(state, e) {
   state.loading = true;
 
   e.on('DOMContentLoaded', async () => {
-    const db = new PouchDB('wiki');
+    if (window.location.origin === "https://localhost:8080") {
+      await (new PouchDB('wiki')).destroy()
+    }
+
+    const db = new PouchDB('wiki', {
+      auto_compaction: true,
+    });
 
     reg('note', addNote, state, e)
     reg('config', setConfig, state, e)
