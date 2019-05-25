@@ -111,7 +111,7 @@ function renderMissing(key) {
 function menuItems(state, emit) {
   return html`
     <li><a href="#index">index</a></li>
-    <li><a href=${"#"+state.params.doc_id+"/add_note"}>add note</a></li>
+    <li><a href=${"#add_note/"+state.params.wildcard}>add note</a></li>
   `;
 }
 
@@ -123,7 +123,7 @@ function view(state, emit) {
     `;
   }
 
-  const key = state.params.doc_id;
+  const key = state.params.wildcard;
   const doc = state.pages[key];
 
   if (!doc) {

@@ -45,13 +45,13 @@ function view(state, emit) {
 
     const { value } = document.getElementById('addNoteTextArea');
     if (value !== '') {
-      const doc = state.pages[state.params.doc_id];
+      const doc = state.pages[state.params.wildcard];
       emit(state.events.pouchdb_note, {
-        doc_id: doc.id,
+        topic_id: doc.id,
         value
       });
     }
 
-    emit('replaceState', '#'+state.params.doc_id);
+    emit('replaceState', '#'+state.params.wildcard);
   }
 }

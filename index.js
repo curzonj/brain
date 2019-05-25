@@ -41,7 +41,7 @@ app.route('/brain', (state,emit) => {
 })
 
 app.route('/brain/login', require('./views/login'))
-app.route('/brain/:doc_id/add_note', require('./views/add_note'))
-app.route('/brain/:doc_id', require('./views/main'))
+app.route('/brain/add_note/*', require('./views/add_note'))
+app.route('/brain/*', require('./views/main'))
 
 module.exports = app.mount('body')

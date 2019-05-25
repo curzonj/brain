@@ -75,12 +75,12 @@ function store(state, e) {
     }
 
 
-    async function addNote({ doc_id, value }) {
+    async function addNote({ topic_id, value }) {
       const nonce = `${Date.now()}-${randomString(8)}`
       const text = value.trim()
       const doc = {
-        _id: `$/queue/${doc_id}/${nonce}`,
-        topic_id: doc_id,
+        _id: `$/queue/${topic_id}/${nonce}`,
+        topic_id: topic_id,
         text
       }
 
