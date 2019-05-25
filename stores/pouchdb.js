@@ -11,30 +11,33 @@ function store(state, e) {
     const db = new PouchDB('wiki');
 
     reg('note', addNote, state, e)
+    reg('config', setConfig, state, e)
 
-    if (!populateAuth()) {
-      return;
+    if (validateOrRedirect(state, e)) {
+      establishConnection()
     }
 
-    const config = JSON.parse(localStorage.couchdb_target);
-    const remoteDb = new PouchDB(config.url, config);
+    function establishConnection() {
+      const config = JSON.parse(localStorage.couchdb_target);
+      const remoteDb = new PouchDB(config.url, config);
 
-    db.sync(remoteDb, {
-      live: true, retry: true
-    }).on('change', function (change) {
-      console.log("pouchdb:change", change)
-    }).on('paused', function (info) {
-      console.log("pouchdb:paused", info)
-      updatePages()
-    }).on('active', function (info) {
-      console.log("pouchdb:active", info)
-    }).on('error', function (err) {
-      console.log("pouchdb:error", err)
-      blockUpdates(err)
-    }).on('denied', function(err) {
-      console.log('pouchdb:denied', err);
-      blockUpdates(err)
-    })
+      db.sync(remoteDb, {
+        live: true, retry: true
+      }).on('change', function (change) {
+        console.log("pouchdb:change", change)
+      }).on('paused', function (info) {
+        console.log("pouchdb:paused", info)
+        updatePages()
+      }).on('active', function (info) {
+        console.log("pouchdb:active", info)
+      }).on('error', function (err) {
+        console.log("pouchdb:error", err)
+        blockUpdates(err)
+      }).on('denied', function(err) {
+        console.log('pouchdb:denied', err);
+        blockUpdates(err)
+      })
+    }
 
     function blockUpdates(err) {
       state.pouchdbBroken = JSON.stringify(err)
@@ -57,6 +60,20 @@ function store(state, e) {
         }
         return text;
     }
+
+    async function setConfig(value) {
+      if (!value || value === '') {
+        return
+      }
+
+      try {
+        JSON.parse(value)
+      } catch(err) { return }
+
+      localStorage.couchdb_target = value
+      establishConnection()
+    }
+
 
     async function addNote({ doc_id, value }) {
       const nonce = `${Date.now()}-${randomString(8)}`
@@ -106,9 +123,12 @@ function store(state, e) {
 
       const pages = {};
       docs.forEach(doc => {
-        const key = doc._id.split("/")[2]
-        pages[key] = doc;
-        pages[key.replace(/-/g, ' ')] = doc
+        if (!doc.id) {
+          console.log(doc)
+          return
+        }
+        pages[doc.id] = doc;
+        pages[doc.id.replace(/-/g, ' ')] = doc
 
         if (doc.aka) {
           doc.aka.forEach(k => {
@@ -127,23 +147,10 @@ function store(state, e) {
   });
 }
 
-function populateAuth() {
-  if (localStorage.couchdb_target) {
-    return true;
-  }
-  const result = prompt('replication target');
-  if (!result) {
-    alert('Unable to authenticate');
-    return;
-  }
-
+function validateOrRedirect(state, e) {
   try {
-    JSON.parse(result);
-    localStorage.couchdb_target = result;
-    return true;
-  } catch (err) {
-    console.log(err);
-    alert('Unable to authenticate');
-    return false;
-  }
+    if (localStorage.couchdb_target && JSON.parse(localStorage.couchdb_target)) return true
+  } catch (err) {}
+
+  e.emit('replaceState', '/brain#login');
 }

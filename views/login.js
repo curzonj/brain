@@ -21,15 +21,16 @@ function view(state, emit) {
   `;
 
   const form = () => html`
+    <h1>Set the configuration</h1>
     <form class=${formCss}>
       <textarea
-        id="addNoteTextArea"
+        id="setConfigTextArea"
         name="text"
         onkeydown=${onkeydown}
         autocomplete="on"
         autocapitalize="sentences"
         required
-        value=""
+        value="${localStorage.couchdb_target}"
       ></textarea>
     </form>
   `;
@@ -43,15 +44,7 @@ function view(state, emit) {
   function done(e) {
     e.preventDefault();
 
-    const { value } = document.getElementById('addNoteTextArea');
-    if (value !== '') {
-      const doc = state.pages[state.params.doc_id];
-      emit(state.events.pouchdb_note, {
-        doc_id: doc.id,
-        value
-      });
-    }
-
-    emit('replaceState', '#'+state.params.doc_id);
+    const { value } = document.getElementById('setConfigTextArea');
+    emit(state.events.pouchdb_config, value)
   }
 }

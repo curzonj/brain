@@ -1,45 +1,72 @@
-description: "represents a range of types of things including: concepts, entities, topics"
-type: object
-additionalProperties: false
-properties:
-  _id:
-    type: string
-  _rev:
-    type: string
-  what:
-    description: a concrete independent topic
-    type: string
-  aka:
-    type: array
-    items:
-      type: string
-  related:
-    $ref: "#/definitions/related"
-  links:
-    $ref: "#/definitions/links"
-  books:
-    $ref: "#/definitions/books"
-  todo:
+$ref: "#/definitions/topicListDocument"
+definitions:
+  topicListDocument:
+    type: object
+    additionalProperties:
+      $ref: "#/definitions/legacyDocument"
+  legacyDocument:
+    description: "represents a range of types of things including: concepts, entities, topics"
+    type: object
+    additionalProperties: false
+    properties:
+      what:
+        description: a concrete independent topic
+        type: string
+      aka:
+        type: array
+        items:
+          type: string
+      related:
+        oneOf:
+          - type: string
+          - $ref: "#/definitions/nodeList"
+      links:
+        $ref: "#/definitions/links"
+      books:
+        $ref: "#/definitions/books"
+      todo:
+        type: array
+        items:
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: false
+              properties:
+                text:
+                  type: string
+                related:
+                  type: string
+      thoughts:
+        $ref: "#/definitions/plainTextList"
+      sections:
+        $ref: "#/definitions/sectionList"
+      queue:
+        type: array
+        items:
+          type: string
+  nodeList:
     type: array
     items:
       oneOf:
         - type: string
+          format: uri
+        - type: string
+          not:
+            pattern: 'https?://'
         - type: object
           additionalProperties: false
           properties:
-            text:
+            id:
               type: string
+            label:
+              type: string
+        - type: object
+          additionalProperties: false
+          properties:
             related:
               type: string
-  thoughts:
-    $ref: "#/definitions/plainTextList"
-  sections:
-    $ref: "#/definitions/sectionList"
-  queue:
-    type: array
-    items:
-      type: string
-definitions:
+            text:
+              type: string
   related:
     oneOf:
       - type: string
