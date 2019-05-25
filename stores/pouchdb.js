@@ -152,5 +152,6 @@ function validateOrRedirect(state, e) {
     if (localStorage.couchdb_target && JSON.parse(localStorage.couchdb_target)) return true
   } catch (err) {}
 
+  state.rawConfig = localStorage.couchdb_target
   e.emit('replaceState', '/brain#login');
 }

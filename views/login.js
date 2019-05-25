@@ -30,7 +30,7 @@ function view(state, emit) {
         autocomplete="on"
         autocapitalize="sentences"
         required
-        value="${localStorage.couchdb_target}"
+        value="${state.rawConfig}"
       ></textarea>
     </form>
   `;
