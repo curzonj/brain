@@ -59,7 +59,7 @@ function store(state, e) {
     }
 
     async function addNote(input) {
-      const nonce = randomString(32)
+      const nonce = `${Date.now()}-${randomString(8)}`
       const value = input.trim()
       const pageName = "inbox"
       const doc = {

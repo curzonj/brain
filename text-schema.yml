@@ -35,6 +35,10 @@ properties:
     $ref: "#/definitions/plainTextList"
   sections:
     $ref: "#/definitions/sectionList"
+  queue:
+    type: array
+    items:
+      type: string
 definitions:
   related:
     oneOf:
