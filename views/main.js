@@ -181,7 +181,7 @@ function view(state, emit) {
   }
 
   function renderNotes(doc) {
-    if (!doc.links && !doc.thoughts && !doc.related) {
+    if (!doc.links && !doc.thoughts && !doc.related && !doc.queue) {
       return;
     }
 
@@ -190,6 +190,7 @@ function view(state, emit) {
         ${title()} ${dt(doc)} ${renderRelated(doc)}
         ${renderList(doc.links, li => link(li), 'Links')}
         ${renderList(doc.thoughts, renderText, 'Thoughts')}
+        ${renderList(doc.queue, renderText, 'Inbox')}
       </section>
     `;
 
@@ -356,6 +357,7 @@ function view(state, emit) {
       'list',
       'topics',
       'thoughts',
+      'queue',
       'about',
       'todo',
     ];
@@ -390,7 +392,7 @@ function view(state, emit) {
     if (typeof doc.related === 'string') {
       return anchor(doc.related);
     }
-    return doc._id.replace(/-/g, ' ');
+    return "Unknown"
   }
 
   function link(obj) {

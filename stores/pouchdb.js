@@ -17,7 +17,7 @@ function store(state, e) {
     }
 
     const config = JSON.parse(localStorage.couchdb_target);
-    const remoteDb = new PouchDB(config.url, { auth: config.auth });
+    const remoteDb = new PouchDB(config.url, config);
 
     db.sync(remoteDb, {
       live: true, retry: true
@@ -43,42 +43,87 @@ function store(state, e) {
 
     async function updatePages() {
       state.pages = await buildPages();
+      await appendQueueToPages(state.pages);
       state.loading = false;
 
       e.emit(state.events.RENDER);
     }
 
-    async function addNote(value) {
-      const doc = await db.get("inbox")
-      doc.thoughts.unshift(value.trim())
-      state.pages.inbox = doc
+    function randomString(length) {
+        var text = "";
+        var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        for(var i = 0; i < length; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+
+    async function addNote(input) {
+      const nonce = randomString(32)
+      const value = input.trim()
+      const pageName = "inbox"
+      const doc = {
+        _id: `$/queue/${pageName}/${nonce}`,
+        text: value
+      }
+
+      db.put(doc)
+      addItemToPageQueue(state.pages, doc)
       e.emit(state.events.RENDER);
-      await db.put(doc)
+    }
+
+    function addItemToPageQueue(pages, { _id, text }) {
+      const pageName = _id.split("/")[2]
+      let page = pages[pageName]
+      if (!page) {
+        page = pages[pageName] = {}
+      }
+      if (!page.queue) {
+        page.queue = []
+      }
+      page.queue.unshift(text)
+    }
+
+    async function appendQueueToPages(pages) {
+      const docs = await db.allDocs({
+        include_docs: true,
+        startkey: '$/queue/',
+        endkey: '$/queue/\ufff0'
+      }).
+        then(({rows}) => rows.map(({doc}) => doc))
+
+      docs.forEach(doc => {
+        addItemToPageQueue(pages, doc)
+      });
     }
 
     async function buildPages() {
-      const { rows } = await db.allDocs({
+      const docs = await db.allDocs({
         include_docs: true,
-      });
+        startkey: '$/topics/',
+        endkey: '$/topics/\ufff0'
+      }).
+        then(({rows}) => rows.map(({doc}) => doc))
 
-      const allDocs = {};
-      rows.forEach(({ doc }) => {
-        allDocs[doc._id] = doc;
-        allDocs[doc._id.replace(/-/g, ' ')] = doc
+      const pages = {};
+      docs.forEach(doc => {
+        const key = doc._id.split("/")[2]
+        pages[key] = doc;
+        pages[key.replace(/-/g, ' ')] = doc
 
         if (doc.aka) {
           doc.aka.forEach(k => {
-            allDocs[k] = doc
-            allDocs[k.replace(/-/g, ' ')] = doc
+            pages[k] = doc
+            pages[k.replace(/-/g, ' ')] = doc
           })
         }
 
         if (doc.what) {
-          allDocs[doc.what] = doc;
+          pages[doc.what] = doc;
         }
       });
 
-      return allDocs;
+      return pages;
     }
   });
 }
