@@ -57,7 +57,7 @@ definitions:
     items:
       oneOf:
         - type: string
-          pattern: "^https?://"
+          format: uri
         - $ref: "#/definitions/externalReference"
   src:
     oneOf:
@@ -150,17 +150,6 @@ definitions:
         type: string
       src:
         $ref: "#/definitions/src"
-
-      # Question answer attributes
-      question:
-        # unenforced, but required for this type
-        type: string
-      answer:
-        oneOf:
-          - type: string
-          - type: array
-            items:
-              type: string
 
       # Misc attributes
       date:
