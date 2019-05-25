@@ -1,0 +1,2 @@
+self.addEventListener("fetch",function(t){const e=t.request;t.respondWith(fetch(e).then(t=>{if("GET"===e.method&&e.url.startsWith("http")&&!e.headers.get("authorization")){const c=t.clone();caches.open("v1").then(t=>t.put(e,c)).catch(console.log)}return t}).catch(t=>caches.match(e)))});
+//# sourceMappingURL=bankai-service-worker.js.map
