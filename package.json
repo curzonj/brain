@@ -13,8 +13,7 @@
     "url": "git+https://github.com/curzonj/brain.git"
   },
   "scripts": {
-    "deploy": "gh-pages -d dist",
-    "build": "rm -r dist/* && bankai build index.js --base=/brain && mv dist/brain/* dist/ && rmdir dist/brain",
+    "deploy": "rm -r dist/* && bankai build index.js --base=/brain && mv dist/brain/* dist/ && rmdir dist/brain && gh-pages -d dist",
     "create": "choo-scaffold",
     "inspect": "bankai inspect index.js",
     "start": "bankai start index.js",

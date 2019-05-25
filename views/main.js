@@ -334,6 +334,7 @@ function view(state, emit) {
     const formattedKeys = [
       '_id',
       '_rev',
+      'id',
       'what',
       'text',
       'related',
