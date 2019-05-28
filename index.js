@@ -3,6 +3,7 @@ require('babel-polyfill')
 const html = require('choo/html');
 const css = require('sheetify')
 const choo = require('choo')
+const sha256 = require('js-sha256')
 
 css('tachyons')
 
@@ -29,19 +30,15 @@ app.use((state, emitter) => {
 
 app.use(require('./stores/pouchdb'))
 
-// Only useful in development because it won't match in prod
-app.route('/', (state,emit) => {
-  emit('replaceState', '/brain#index');
-  return html`<body>Redirecting ...</body>`;
-})
-
-app.route('/brain', (state,emit) => {
-  emit('replaceState', '#index');
-  return html`<body>Redirecting ...</body>`;
-})
-
+app.route('/', redirectIndex)
+app.route('/brain', redirectIndex)
 app.route('/brain/login', require('./views/login'))
 app.route('/brain/add_note/*', require('./views/add_note'))
 app.route('/brain/*', require('./views/main'))
 
 module.exports = app.mount('body')
+
+function redirectIndex(state,emit) {
+  emit('replaceState', '#/index');
+  return html`<body>Redirecting ...</body>`;
+}

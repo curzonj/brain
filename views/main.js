@@ -8,6 +8,15 @@ const withMenu = require('../lib/menu');
 
 module.exports = body(withMenu(menuItems, view));
 
+const ListFieldNames = [
+  ['next', 'Next'],
+  ['later', 'Later'],
+  ['mentions', 'Mentions'],
+  ['stories', 'Stories'],
+  ['links', 'Links'],
+  ['queue', 'Queue'],
+]
+
 const missingLinkCss = css`
   :host {
     font-style: italic;
@@ -40,7 +49,7 @@ const topCss = css`
     font-weight: 300;
   }
 
-  :host .anchorLink {
+  :host .refLink {
     font-size: 1.2em;
     margin-bottom: 0.6em;
     display: block;
@@ -110,7 +119,7 @@ function renderMissing(key) {
 
 function menuItems(state, emit) {
   return html`
-    <li><a href="#index">index</a></li>
+    <li><a href="#/index">index</a></li>
     <li><a href=${"#add_note/"+state.params.wildcard}>add note</a></li>
   `;
 }
@@ -118,9 +127,7 @@ function menuItems(state, emit) {
 const titleThreshold = 30;
 function view(state, emit) {
   if (state.loading) {
-    return html`
-      <span>Loading...</span>
-    `;
+    return span("Loading...")
   }
 
   const key = state.params.wildcard;
@@ -132,7 +139,7 @@ function view(state, emit) {
 
   const docKeys = Object.keys(doc);
   if (Object.keys(doc).length === 1) {
-    return renderMissing(doc.what);
+    return renderMissing(doc.title);
   }
 
   return html`
@@ -142,322 +149,191 @@ function view(state, emit) {
         ${subtitle()}
       </div>
 
-      ${renderTODO(doc)}
-      ${renderSections(doc)}
-      ${renderNotes(doc)}
+      ${renderTODOs(doc)}
+      ${renderSections(doc.list)}
+      ${renderOtherFieldsSection(doc)}
     </div>
   `;
 
-  function renderSections(doc) {
-    if (!doc.sections) return
+  function deriveTitle() {
+    return doc.title || doc.join || doc.link;
+  }
+  function subtitle() {
+    return null
+    /*
+    return html`
+      <span class="subtitle">${text}</span>
+    `;
+    */
+  }
 
-    return doc.sections.
-      map(s => state.pages[`${doc.id}/${s}`]).
-      filter(s => !!s).
+  function renderOtherFieldsSection(doc) {
+    if (!doc.mentions && !doc.stories && !doc.related && !doc.links && !doc.queue) return;
+
+    // TODO src, props
+
+    return section(html`
+      ${maybe(doc.related, sectionDivFn("Related"))}
+      ${maybe(doc.mentions, sectionDivFn("Mentions"))}
+      ${maybe(doc.stories, sectionDivFn("Stories"))}
+      ${maybe(doc.links, sectionDivFn("Links"))}
+      ${maybe(doc.queue, sectionDivFn("Queue"))}
+    `);
+  }
+
+  function renderTODOs(doc) {
+    if (!doc.next && !doc.later) return;
+
+    return section(html`
+      <h2 class="title">TODO</h2>
+      ${maybe(doc.next, sectionDivFn("Next"))}
+      ${maybe(doc.later, sectionDivFn("Later"))}
+    `);
+  }
+
+  function renderSections(list) {
+    if (!list) {
+      return
+    }
+
+    return list.
+      map(s => (typeof s === "string" && s.startsWith("/") && state.pages[s]) || s).
       map(renderSection)
   }
 
-  function deriveTitle() {
-    const str = doc.what;
-    if (doc.subtitle) return str;
-    if (str.length > titleThreshold && str.length > doc.id.length)
-      return doc.id.replace(/-/g, ' ');
-    return str;
-  }
-  function subtitle() {
-    const str = doc.what;
-    let text;
-
-    if (doc.subtitle) text = doc.subtitle;
-    if (str.length > titleThreshold && str.length > doc._id.length) text = str;
-
-    if (text) {
-      return html`
-        <span class="subtitle">${text}</span>
-      `;
-    }
-  }
-
-  function renderTODO(doc) {
-    if (!doc.todo) {
-      return;
-    }
-
-    return html`
-      <section>
-        ${renderList(doc.todo, renderText, 'TODO')}
-      </section>
-    `;
-  }
-
-  function renderNotes(doc) {
-    if (!doc.links && !doc.thoughts && !doc.related && !doc.queue) {
-      return;
-    }
-
-    return html`
-      <section>
-        ${title()}
-        ${dt(doc)}
-        ${renderRelated(doc)}
-        ${renderList(doc.links, li => link(li), 'Links')}
-        ${renderList(doc.thoughts, renderText, 'Thoughts')}
-        ${renderList(doc.queue, renderText, 'Inbox')}
-      </section>
-    `;
-
-    function title() {
-      if (doc.sections)
-        return html`
-          <h2 class="title">Notes</h2>
-        `;
-    }
+  function eachListField(doc, fn) {
+    return ListFieldNames.map(([field, text]) => {
+      return maybe(doc[field], fn(text))
+    })
   }
 
   function renderSection(doc) {
-    return html`
-      <section>
-        <h2 class="title">${doc.what}</h2>
-        ${renderList(doc.topics, renderTopic)}
-        ${renderList(doc.list, renderText)}
-        ${dt(doc)}
-        ${renderRelated(doc)}
-        ${renderList(doc.links, li => link(li), 'Links')}
-        ${renderList(doc.thoughts, renderText, 'Thoughts')}
-      </section>
-    `;
-  }
-
-  function dt(doc) {
-    const list = rawKeys(doc);
-    if (list.length === 0) return;
-    return html`
-      <dl>
-        ${list.map(k => dtJSON(doc, k))}
-      </dl>
-    `;
-  }
-
-  function renderRelated(doc) {
-    return renderList(doc.related, anchor, 'Related');
-  }
-
-  function renderText(li) {
-    if (typeof li === 'string') {
-      return li;
+    if (typeof doc === "string") {
+      return section(renderTextItem(doc))
     }
-    const done = ['links'];
-    function text() {
-      if (!li.text) {
-        return;
-      }
 
-      done.push('text');
+    return section(html`
+      <h2 class="title">${getTitle(doc)}</h2>
+      ${maybe(doc.text, p)}
+      ${maybe(doc.list, renderSectionNodeDivs)}
+      ${eachListField(doc, sectionDivFn)}
+    `);
+  }
+
+  function renderSectionNodeDivs(list) {
+    if(list.every(s => s.id && s.id.startsWith && s.id.starts("/"))) {
+      return list.map(renderSectionNodeDiv)
+    } else {
+      return simpleList(list)
+    }
+  }
+
+  function sectionDivFn(heading) {
+    return (list) => renderSectionDiv(list, heading)
+  }
+
+  // TODO get the listDD styling applied here
+  function simpleList(list) {
+    const item = li => html`<li>${renderTextItem(li)}</li>`;
+    return html`<ul>${list.flatMap(item)}</ul>`;
+  }
+
+  function renderSectionDiv(list, heading) {
+    function h3title(v) {
+      return html`<h3 class="title">${v}</h3>`
+    }
+
+    return html`
+      <div>
+        ${maybe(heading, h3title)}
+        ${simpleList(list)}
+      </div>
+    `;
+  }
+
+  function renderSectionNodeDiv(node) {
+    return renderSectionDiv(
+      node.list,
+      getTitle(node))
+  }
+
+  function renderTextItem(item) {
+    if (typeof item === "string") {
+      if (item.startsWith("/")) {
+        return renderRef({ ref: item })
+      } else if (item.startsWith("http")) {
+        return link(item)
+      } else {
+        return p(item)
+      }
+    } else if (item.ref) {
+      return renderRef(item)
+    } else if (item.link) {
+      return link(item)
+    } else {
       return html`
-        <span>${li.text}</span>
+        ${maybe(item.text, p)}
+        ${maybe(item.mentions, simpleList)}
       `;
     }
+  }
 
-    function related() {
-      if (!li.related) {
-        return;
-      }
-
-      done.push('related');
-      // The anchor will display in block mode
-      if (li.related.flatMap) {
-        return renderRelated(li);
-      }
-      return anchor(li.related);
-    }
-
-    function dtTheRest() {
-      const list = Object.keys(li).filter(k => done.indexOf(k) === -1);
-      if (list.length === 0) return;
+  function renderRef({ ref, label }) {
+    if (label) {
+      // TODO format this better
       return html`
-        <dl>
-          ${list.map(k => dtJSON(li, k))}
-        </dl>
+        <p>${refLink(ref, label)}</p>
+        <span>${ref}</span>
       `;
+    } else {
+      return refLink(ref)
     }
-
-    return html`
-      ${text()} ${related()} ${renderList(li.links, li => link(li), 'Links')}
-      ${dtTheRest()}
-    `;
-  }
-
-  function renderTopic(li) {
-    if (typeof li === 'string') {
-      return anchor(li);
-    }
-    return renderText(li);
-  }
-
-  function renderList(list, fn, heading) {
-    if (!list) {
-      return;
-    }
-
-    assert.equal(
-      typeof list.flatMap,
-      'function',
-      JSON.stringify({
-        error: 'not a list',
-        value: list,
-      })
-    );
-
-    function item(li) {
-      return html`
-        <li>${fn(li)}</li>
-      `;
-    }
-
-    function maybeHeading() {
-      if (heading)
-        return html`
-          <h3 class="title">${heading}</h3>
-        `;
-    }
-
-    return html`
-      ${maybeHeading()}
-      <ul>
-        ${list.flatMap(item)}
-      </ul>
-    `;
-  }
-
-  function listField(doc, field, fn) {
-    return onlyIf(doc, field, l => renderList(l, fn));
-  }
-
-  function onlyIf(doc, field, fn) {
-    const v = doc[field];
-    if (!v) return;
-
-    return html`
-      <dt>${field}:</dt>
-      <dd className=${v.flatMap ? 'listDD' : ''}>${fn(v)}</dd>
-    `;
-  }
-
-  function rawKeys(doc) {
-    const formattedKeys = [
-      '_id',
-      '_rev',
-      'id',
-      'what',
-      'text',
-      'related',
-      'links',
-      'sections',
-      'list',
-      'topics',
-      'thoughts',
-      'queue',
-      'todo',
-    ];
-    return Object.keys(doc).filter(k => formattedKeys.indexOf(k) === -1);
-  }
-
-  function dtJSON(doc, field) {
-    const v = doc[field];
-
-    if (v.flatMap) {
-      return listField(doc, field, li => renderText(li));
-    }
-
-    let value = doc[field];
-
-    if (typeof value !== 'string') {
-      value = JSON.stringify(value);
-    } else if (value.startsWith('http')) {
-      value = link(value);
-    }
-
-    return html`
-      <dt>${field}:</dt>
-      <dd>${value}</dd>
-    `;
   }
 
   function link(obj) {
     const mobile = document.documentElement.clientWidth < 800;
     const done = ['link', 'title'];
 
-    function anchor() {
-      if (typeof obj === "string" || obj.link) {
-        let target = obj;
-        let text = obj;
+    if (typeof obj === "string" || obj.link) {
+      let target = obj;
+      let text = obj;
 
-        if (typeof obj !== 'string') {
-          target = obj.link;
-          text = obj.title || obj.link;
+      if (typeof obj !== 'string') {
+        target = obj.link;
+        text = obj.title || obj.link;
+      }
+
+      if (text.startsWith('https://en.wikipedia.org/wiki')) {
+        text = `Wikipedia: ${text
+          .replace('https://en.wikipedia.org/wiki/', '')
+          .replace(/_/g, ' ')}`;
+      } else if (text.indexOf('pinboard.in/u:curzonj/') !== -1) {
+        text = `Pinboard: ${text
+          .replace(/https?:\/\/pinboard.in\/u:curzonj\//, '')
+          .split('/')
+          .filter(l => l && l !== "")
+          .flatMap(l => l.replace(/^t:/, ''))
+          .join(', ')}`;
+        target = target.replace(/^http:\/\//, 'https://');
+        if (mobile) {
+          target = target.replace('pinboard.in', 'm.pinboard.in');
         }
-
-        if (text.startsWith('https://en.wikipedia.org/wiki')) {
-          text = `Wikipedia: ${text
-            .replace('https://en.wikipedia.org/wiki/', '')
-            .replace(/_/g, ' ')}`;
-        } else if (text.indexOf('pinboard.in/u:curzonj/') !== -1) {
-          text = `Pinboard: ${text
-            .replace(/https?:\/\/pinboard.in\/u:curzonj\//, '')
-            .split('/')
-            .flatMap(l => l.replace(/^t:/, ''))
-            .join(', ')}`;
-          target = target.replace(/^http:\/\//, 'https://');
-          if (mobile) {
-            target = target.replace('pinboard.in', 'm.pinboard.in');
-          }
-        }
-
-        return html`
-          <a target="_blank" href="${target}">${text}</a>
-        `;
       }
-      if (obj.search && !obj.site) {
-        done.push('search');
-        return html`
-          <a
-            target="_blank"
-            href="https://google.com/search?q=${encodeURIComponent(obj.search)}"
-            >Google: ${obj.search}</a
-          >
-        `;
-      }
-    }
 
-    function dtTheRest() {
-      if (typeof obj === "string") {
-        return
-      }
-      const list = Object.keys(obj).filter(k => done.indexOf(k) === -1);
-      if (list.length === 0) return;
       return html`
-        <dl>
-          ${list.map(k => dtJSON(obj, k))}
-        </dl>
+        <a target="_blank" href="${target}">${text}</a>
       `;
     }
-
-    return html`
-      ${anchor()}
-      ${dtTheRest()}
-    `;
-  }
-
-  function anchor(l) {
-    if (!state.pages[l]) {
+    if (obj.search && !obj.site) {
+      done.push('search');
       return html`
-        <span class=${missingLinkCss}>${l}</span>
+        <a
+          target="_blank"
+          href="https://google.com/search?q=${encodeURIComponent(obj.search)}"
+          >Google: ${obj.search}</a
+        >
       `;
     }
-
-    return html`
-      <a class="anchorLink" href="#${encodeURI(l)}">${l}</a>
-    `;
   }
 
   function convertLinks(doc) {
@@ -489,5 +365,38 @@ function view(state, emit) {
     } else if (doc.src.link) {
       doc.src.link = link(doc.src.link);
     }
+  }
+
+  function maybe(v, f) {
+    if (v) {
+      return f(v)
+    }
+  }
+
+  function refLink(link, text) {
+    return html`<a class="refLink" href="#${encodeURI(link)}">${text || link}</a>`;
+  }
+
+  function section(inner) {
+    return html`<section>${inner}</section>`;
+  }
+
+  function p(v) {
+    return html`<p>${v}</p>`;
+  }
+
+  function span(v) {
+    return html`<span>${v}</p>`;
+  }
+
+  function getTitle(doc) {
+    const title = doc.title || doc.join || doc.link;
+    if (title && typeof title !== 'string') {
+      console.log(title)
+      console.log(doc)
+      throw("Not a string: "+title.toString())
+    }
+
+    return title
   }
 }

@@ -2,6 +2,7 @@ module.exports = store;
 
 const PouchDB = require('pouchdb');
 const reg = require('../lib/event_helper')('pouchdb');
+const sha256 = require('js-sha256')
 
 function store(state, e) {
   state.pages = {};
@@ -23,6 +24,8 @@ function store(state, e) {
       establishConnection()
     }
 
+    e.on('navigate', updatePages)
+
     function establishConnection() {
       const config = JSON.parse(localStorage.couchdb_target);
       const remoteDb = new PouchDB(config.url, config);
@@ -30,17 +33,17 @@ function store(state, e) {
       db.sync(remoteDb, {
         live: true, retry: true
       }).on('change', function (change) {
-        console.log("pouchdb:change", change)
+        //console.log("pouchdb:change", change)
       }).on('paused', function (info) {
-        console.log("pouchdb:paused", info)
+        //console.log("pouchdb:paused", info)
         updatePages()
       }).on('active', function (info) {
-        console.log("pouchdb:active", info)
+        //console.log("pouchdb:active", info)
       }).on('error', function (err) {
-        console.log("pouchdb:error", err)
+        //console.log("pouchdb:error", err)
         blockUpdates(err)
       }).on('denied', function(err) {
-        console.log('pouchdb:denied', err);
+        //console.log('pouchdb:denied', err);
         blockUpdates(err)
       })
     }
@@ -52,7 +55,7 @@ function store(state, e) {
 
     async function updatePages() {
       state.pages = await buildPages();
-      await appendQueueToPages(state.pages);
+      //await appendQueueToPages(state.pages);
       state.loading = false;
 
       e.emit(state.events.RENDER);
@@ -84,70 +87,75 @@ function store(state, e) {
     async function addNote({ topic_id, value }) {
       const nonce = `${Date.now()}-${randomString(8)}`
       const text = value.trim()
+      const topicKey = sha256(topic_id)
       const doc = {
-        _id: `$/queue/${topic_id}/${nonce}`,
+        _id: `$/queue/${topicKey}/${nonce}`,
         topic_id: topic_id,
         text
       }
 
-      db.put(doc)
-      addItemToPageQueue(state.pages, doc)
-      e.emit(state.events.RENDER);
-    }
-
-    function addItemToPageQueue(pages, { topic_id, text }) {
-      let page = pages[topic_id]
-      if (!page) {
-        page = pages[topic_id] = {}
-      }
+      const page = state.pages[state.params.wildcard]
       if (!page.queue) {
         page.queue = []
       }
       page.queue.unshift(text)
+
+      db.put(doc)
+      e.emit(state.events.RENDER);
     }
 
-    async function appendQueueToPages(pages) {
-      const docs = await db.allDocs({
-        include_docs: true,
-        startkey: '$/queue/',
-        endkey: '$/queue/\ufff0'
-      }).
-        then(({rows}) => rows.map(({doc}) => doc))
+    async function appendQueueToPage(doc) {
+      if (!doc.queue) {
+        doc.queue = []
+      }
 
-      docs.forEach(doc => {
-        addItemToPageQueue(pages, doc)
+      const { id: topic_id, queue } = doc
+      const topicKey = sha256(topic_id)
+      const items = await db.allDocs({
+        include_docs: true,
+        startkey: `$/queue/${topicKey}`,
+        endkey: `$/queue/${topicKey}\ufff0`
+      }).
+        then(({rows}) => rows.map(({doc: n}) => n))
+
+      items.forEach(item => {
+        queue.unshift(item)
       });
+
+      if (doc.queue.length === 0) {
+        delete doc.queue
+      }
     }
 
     async function buildPages() {
+      const pages = {}
+      const doc = await db.get("$/topics/"+sha256(state.params.wildcard)).catch(console.log)
+
+      pages[state.params.wildcard] = doc
+      if (doc) {
+        await appendQueueToPage(doc)
+        await addListPages(pages, doc.list)
+      }
+
+      return pages;
+    }
+
+    async function addListPages(pages, list) {
+      if (!list) return;
+
+      const ids = list.
+        filter(s => s.startsWith && s.startsWith("/")).
+        map(s => "$/topics/"+sha256(s))
+
       const docs = await db.allDocs({
         include_docs: true,
-        startkey: '$/topics/',
-        endkey: '$/topics/\ufff0'
+        keys: ids,
       }).
         then(({rows}) => rows.map(({doc}) => doc))
 
-      const pages = {};
-      docs.forEach(doc => {
-        pages[doc.id] = doc;
+      await Promise.all(docs.map(appendQueueToPage))
 
-        if (doc.id.indexOf("/") === -1) {
-          pages[doc.id.replace(/-/g, ' ')] = doc
-
-          if (doc.aka) {
-            doc.aka.forEach(k => {
-              pages[k] = doc
-              pages[k.replace(/-/g, ' ')] = doc
-            })
-          }
-
-          if (doc.what) {
-            pages[doc.what] = doc;
-          }
-        }
-      });
-
-      return pages;
+      docs.forEach(d => { pages[d.id] = d })
     }
   });
 }
