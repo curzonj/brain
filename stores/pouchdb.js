@@ -4,9 +4,11 @@ const PouchDB = require('pouchdb');
 const reg = require('../lib/event_helper')('pouchdb');
 const sha256 = require('js-sha256')
 
+const NestedFieldNames = ['queue', 'next', 'later', 'stories', 'list']
+const RefStringFields = [ ...NestedFieldNames, 'src', 'mentions', 'related' ]
+
 function store(state, e) {
   state.pages = {};
-  state.loading = true;
 
   e.on('DOMContentLoaded', async () => {
     if (window.location.origin === "https://localhost:8080") {
@@ -16,6 +18,10 @@ function store(state, e) {
     const db = new PouchDB('wiki', {
       auto_compaction: true,
     });
+
+    function getTopic(topicKey) {
+      return db.get("$/topics/"+sha256(topicKey))
+    }
 
     reg('note', addNote, state, e)
     reg('config', setConfig, state, e)
@@ -54,9 +60,11 @@ function store(state, e) {
     }
 
     async function updatePages() {
-      state.pages = await buildPages();
-      //await appendQueueToPages(state.pages);
-      state.loading = false;
+      if (state.loadedFor === state.params.wildcard) return;
+
+      const loading = state.params.wildcard
+      state.pages = await buildPages(loading);
+      state.loadedFor = loading;
 
       e.emit(state.events.RENDER);
     }
@@ -127,14 +135,19 @@ function store(state, e) {
       }
     }
 
-    async function buildPages() {
+    async function buildPages(topicId) {
       const pages = {}
-      const doc = await db.get("$/topics/"+sha256(state.params.wildcard)).catch(console.log)
+      const doc = await getTopic(topicId).catch(console.log)
 
-      pages[state.params.wildcard] = doc
+      pages[doc.id] = doc
       if (doc) {
         await appendQueueToPage(doc)
-        await addListPages(pages, doc.list)
+        doc.contextPaths = doc.context.map((v, i) => "/"+([ ...doc.context ].slice(0, i+1).join("/")));
+
+        const referencedPaths = RefStringFields.flatMap(field => doc[field]).filter(s => s && s.startsWith && s.startsWith("/")).filter(s => !!s);
+
+        const dependents = [ ...referencedPaths, ...doc.contextPaths ]
+        await addListPages(pages, dependents)
       }
 
       return pages;
@@ -143,17 +156,18 @@ function store(state, e) {
     async function addListPages(pages, list) {
       if (!list) return;
 
-      const ids = list.
-        filter(s => s.startsWith && s.startsWith("/")).
-        map(s => "$/topics/"+sha256(s))
+      const ids = list.map(s => "$/topics/"+sha256(s))
 
-      const docs = await db.allDocs({
+      const { rows } = await db.allDocs({
         include_docs: true,
         keys: ids,
-      }).
-        then(({rows}) => rows.map(({doc}) => doc))
+      })
 
-      await Promise.all(docs.map(appendQueueToPage))
+      const docs = rows.
+        filter(n => n.doc).
+        map(n => n.doc);
+
+      await Promise.all(docs.map(appendQueueToPage));
 
       docs.forEach(d => { pages[d.id] = d })
     }

@@ -1,4 +1,5 @@
 const html = require('choo/html');
+const raw = require('choo/html/raw');
 const css = require('sheetify');
 const yaml = require('js-yaml');
 const assert = require('assert');
@@ -8,6 +9,15 @@ const withMenu = require('../lib/menu');
 
 module.exports = body(withMenu(menuItems, view));
 
+function menuItems(state, emit) {
+  return html`
+    <li><a href="#/index">index</a></li>
+    <li><a href=${"#add_note/"+state.params.wildcard}>add note</a></li>
+  `;
+}
+
+const NestedFieldNames = ['queue', 'next', 'later', 'stories', 'list']
+const RefStringFields = [ ...NestedFieldNames, 'src', 'mentions', 'related' ]
 const ListFieldNames = [
   ['next', 'Next'],
   ['later', 'Later'],
@@ -47,6 +57,10 @@ const topCss = css`
     font-size: 0.9em;
     color: #c0c0c0;
     font-weight: 300;
+  }
+
+  :host .refBreadcrumb {
+    font-size: 0.9em;
   }
 
   :host .refLink {
@@ -105,36 +119,13 @@ const topCss = css`
   }
 `;
 
-function renderMissing(key) {
-  return html`
-    <div class=${topCss}>
-      <h1 class="title">${key}</h1>
-
-      <section>
-        <p>This page does not have any content yet.</p>
-      </section>
-    </div>
-  `;
-}
-
-function menuItems(state, emit) {
-  return html`
-    <li><a href="#/index">index</a></li>
-    <li><a href=${"#add_note/"+state.params.wildcard}>add note</a></li>
-  `;
-}
-
 const titleThreshold = 30;
 function view(state, emit) {
-  if (state.loading) {
-    return span("Loading...")
-  }
-
-  const key = state.params.wildcard;
+  const key = state.loadedFor;
   const doc = state.pages[key];
 
-  if (!doc) {
-    return renderMissing(key);
+  if (!key) {
+    return section(p("Loading..."))
   }
 
   const docKeys = Object.keys(doc);
@@ -145,19 +136,30 @@ function view(state, emit) {
   return html`
     <div class=${topCss}>
       <div class="header">
-        <h1 class="title">${deriveTitle()}</h1>
+        ${breadcrumbs()}
+        <h1 class="title">${deriveTitle(doc)}</h1>
         ${subtitle()}
       </div>
 
       ${renderTODOs(doc)}
+      ${renderFrontSection(doc)}
       ${renderSections(doc.list)}
       ${renderOtherFieldsSection(doc)}
     </div>
   `;
 
-  function deriveTitle() {
-    return doc.title || doc.join || doc.link;
+  function breadcrumbs() {
+    if (doc.context.length === 0) return;
+    const titleList = doc.contextPaths.map(p => state.pages[p]).map(deriveTitle)
+    const titleListHtml = titleList.flatMap((t,i) => [ refLink(doc.contextPaths[i], t, "refBreadcrumb"), raw("&gt;") ])
+
+    return html`<span>${titleListHtml}</span>`;
   }
+
+  function deriveTitle(n) {
+    return n.title || n.join || n.link || "Note";
+  }
+
   function subtitle() {
     return null
     /*
@@ -191,8 +193,28 @@ function view(state, emit) {
     `);
   }
 
+  function renderFrontSection(doc) {
+    const list = doc.list
+    const isShallow = listIsShallow(list)
+
+    if (!doc.text && !isShallow) {
+      return
+    }
+
+    const shallowListContent = isShallow && simpleList(doc.list)
+
+    return section(html`
+      ${maybe(doc.text, p)}
+      ${shallowListContent}
+    `);
+  }
+
+  function listIsShallow(list) {
+    return list && list.every(s => typeof s === "string" && !s.startsWith("/"))
+  }
+
   function renderSections(list) {
-    if (!list) {
+    if (!list || listIsShallow(list)) {
       return
     }
 
@@ -268,31 +290,36 @@ function view(state, emit) {
       }
     } else if (item.ref) {
       return renderRef(item)
-    } else if (item.link) {
+    } else if (item.link || item.search) {
       return link(item)
     } else {
+      if (item.title) {
+        return refLink(item.id, item.title)
+      }
+
+      console.log(item)
       return html`
         ${maybe(item.text, p)}
         ${maybe(item.mentions, simpleList)}
+        ${renderMoreRef(item)}
       `;
     }
   }
 
+  function renderMoreRef(node) {
+    if (node.id) return refLink(node.id, "more")
+  }
+
+  // TODO dereference these if it's at the right level
   function renderRef({ ref, label }) {
-    if (label) {
-      // TODO format this better
-      return html`
-        <p>${refLink(ref, label)}</p>
-        <span>${ref}</span>
-      `;
-    } else {
-      return refLink(ref)
-    }
+    if (label) return refLink(ref, label)
+    if (!state.pages[ref]) return refLink(ref)
+
+    return renderTextItem(state.pages[ref])
   }
 
   function link(obj) {
     const mobile = document.documentElement.clientWidth < 800;
-    const done = ['link', 'title'];
 
     if (typeof obj === "string" || obj.link) {
       let target = obj;
@@ -323,9 +350,7 @@ function view(state, emit) {
       return html`
         <a target="_blank" href="${target}">${text}</a>
       `;
-    }
-    if (obj.search && !obj.site) {
-      done.push('search');
+    } else if (obj.search) {
       return html`
         <a
           target="_blank"
@@ -336,45 +361,14 @@ function view(state, emit) {
     }
   }
 
-  function convertLinks(doc) {
-    if (doc.links) {
-      doc.links = doc.links.flatMap(l => {
-        if (typeof l === 'string') {
-          return link(l);
-        }
-
-        if (l.link) {
-          l.link = link(l.link);
-        }
-
-        return l;
-      });
-    }
-  }
-
-  function convertThought(doc) {
-    convertLinks(doc);
-    convertRelated(doc);
-    if (doc.more) doc.more.forEach(convertThought);
-
-    if (!doc.src) return;
-
-    if (typeof doc.src === 'string') {
-      if (!doc.src.startsWith('http')) return;
-      doc.src = link(doc.src);
-    } else if (doc.src.link) {
-      doc.src.link = link(doc.src.link);
-    }
-  }
-
   function maybe(v, f) {
     if (v) {
       return f(v)
     }
   }
 
-  function refLink(link, text) {
-    return html`<a class="refLink" href="#${encodeURI(link)}">${text || link}</a>`;
+  function refLink(link, text, cssClass="refLink") {
+    return html`<a class=${cssClass} href="#${encodeURI(link)}">${text || link}</a>`;
   }
 
   function section(inner) {
@@ -398,5 +392,17 @@ function view(state, emit) {
     }
 
     return title
+  }
+
+  function renderMissing(key) {
+    return html`
+      <div class=${topCss}>
+        <h1 class="title">${key}</h1>
+
+        <section>
+          <p>This page does not have any content yet.</p>
+        </section>
+      </div>
+    `;
   }
 }
