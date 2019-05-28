@@ -143,18 +143,26 @@ function store(state, e) {
       if (doc) {
         await appendQueueToPage(doc)
         doc.contextPaths = doc.context.map((v, i) => "/"+([ ...doc.context ].slice(0, i+1).join("/")));
-
-        const referencedPaths = RefStringFields.flatMap(field => doc[field]).filter(s => s && s.startsWith && s.startsWith("/")).filter(s => !!s);
-
-        const dependents = [ ...referencedPaths, ...doc.contextPaths ]
-        await addListPages(pages, dependents)
+        const nestedPaths = gatherNestedPaths(doc)
+        await loadMorePages(pages, [ ...nestedPaths, ...doc.contextPaths ])
+        const nestedDocs = nestedPaths.map(p => pages[p]);
+        await Promise.all(nestedDocs.map(appendQueueToPage));
+        await loadMorePages(pages, nestedDocs.flatMap(gatherNestedPaths));
       }
 
       return pages;
     }
 
-    async function addListPages(pages, list) {
+    function gatherNestedPaths(doc) {
+      return RefStringFields.flatMap(field => doc[field]).filter(s => s && s.startsWith && s.startsWith("/"));
+    }
+
+    async function loadMorePages(pages, list) {
       if (!list) return;
+      if (!list.every(s => typeof s === "string")) {
+        console.log(list)
+        throw("invalid list items")
+      }
 
       const ids = list.map(s => "$/topics/"+sha256(s))
 
@@ -163,13 +171,10 @@ function store(state, e) {
         keys: ids,
       })
 
-      const docs = rows.
+      rows.
         filter(n => n.doc).
-        map(n => n.doc);
-
-      await Promise.all(docs.map(appendQueueToPage));
-
-      docs.forEach(d => { pages[d.id] = d })
+        map(n => n.doc).
+        forEach(d => { pages[d.id] = d });
     }
   });
 }

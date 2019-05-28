@@ -297,7 +297,6 @@ function view(state, emit) {
         return refLink(item.id, item.title)
       }
 
-      console.log(item)
       return html`
         ${maybe(item.text, p)}
         ${maybe(item.mentions, simpleList)}
