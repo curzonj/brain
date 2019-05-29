@@ -21,6 +21,7 @@ const RefStringFields = [ ...NestedFieldNames, 'src', 'mentions', 'related' ]
 const ListFieldNames = [
   ['next', 'Next'],
   ['later', 'Later'],
+  ['related', 'Related'],
   ['mentions', 'Mentions'],
   ['stories', 'Stories'],
   ['links', 'Links'],
@@ -299,16 +300,24 @@ function view(state, emit) {
       return html`
         ${maybe(item.text, p)}
         ${maybe(item.mentions, simpleList)}
+        ${renderSrc(item)}
         ${renderMoreRef(item)}
       `;
     }
+  }
+
+  function renderSrc(node) {
+    if (!node.src) return
+    if (typeof node.src === "string") {
+      return html`src: ${renderTextItem(node.src)}`
+    }
+    return html`<pre>${JSON.stringify(node.src)}</pre>`;
   }
 
   function renderMoreRef(node) {
     if (node.id) return refLink(node.id, "more")
   }
 
-  // TODO dereference these if it's at the right level
   function renderRef({ ref, label }) {
     if (label) return refLink(ref, label)
     if (!state.pages[ref]) return refLink(ref)

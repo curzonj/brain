@@ -160,16 +160,19 @@ function store(state, e) {
     function gatherNestedPaths(doc) {
       return RefStringFields.
         flatMap(field => {
-          if (!doc[field]) return
-          return doc[field].flatMap(s => {
-            if (typeof s === "string") {
-              if (s.startsWith("/")) {
-                return s
+          if (typeof doc[field] === "string" && doc[field].startsWith("/")) {
+            return doc[field]
+          } else if (Array.isArray(doc[field])) {
+            return doc[field].flatMap(s => {
+              if (typeof s === "string") {
+                if (s.startsWith("/")) {
+                  return s
+                }
+              } else {
+                return gatherNestedPaths(s)
               }
-            } else {
-              return gatherNestedPaths(s)
-            }
-          })
+            })
+          }
         }).
         filter(s => !!s)
     }
