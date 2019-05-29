@@ -128,9 +128,8 @@ function view(state, emit) {
     return section(p("Loading..."))
   }
 
-  const docKeys = Object.keys(doc);
-  if (Object.keys(doc).length === 1) {
-    return renderMissing(doc.title);
+  if (!doc || Object.keys(doc).length === 1) {
+    return renderMissing(doc ? doc.title : key);
   }
 
   return html`
@@ -157,7 +156,7 @@ function view(state, emit) {
   }
 
   function deriveTitle(n) {
-    return n.title || n.join || n.link || "Note";
+    return n.title || n.type || n.join || n.link || "Note";
   }
 
   function subtitle() {
@@ -383,7 +382,7 @@ function view(state, emit) {
   }
 
   function getTitle(doc) {
-    const title = doc.title || doc.join || doc.link;
+    const title = doc.title || doc.type || doc.join || doc.link;
     if (title && typeof title !== 'string') {
       console.log(title)
       console.log(doc)

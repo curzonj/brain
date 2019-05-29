@@ -127,10 +127,10 @@ function store(state, e) {
         then(({rows}) => rows.map(({doc: n}) => n))
 
       items.forEach(item => {
-        queue.unshift(item)
+        doc.queue.unshift(item)
       });
 
-      if (doc.queue.length === 0) {
+      if (doc.queue && doc.queue.length === 0) {
         delete doc.queue
       }
     }
@@ -138,29 +138,45 @@ function store(state, e) {
     async function buildPages(topicId) {
       const pages = {}
       const doc = await getTopic(topicId).catch(console.log)
+      if (!doc) return pages
 
       pages[doc.id] = doc
-      if (doc) {
-        await appendQueueToPage(doc)
-        doc.contextPaths = doc.context.map((v, i) => "/"+([ ...doc.context ].slice(0, i+1).join("/")));
-        const nestedPaths = gatherNestedPaths(doc)
-        await loadMorePages(pages, [ ...nestedPaths, ...doc.contextPaths ])
-        const nestedDocs = nestedPaths.map(p => pages[p]);
-        await Promise.all(nestedDocs.map(appendQueueToPage));
-        await loadMorePages(pages, nestedDocs.flatMap(gatherNestedPaths));
-      }
+      await appendQueueToPage(doc)
+      doc.contextPaths = doc.context.map((v, i) => "/"+([ ...doc.context ].slice(0, i+1).join("/")));
+      const nestedPaths = gatherNestedPaths(doc)
+      await loadMorePages(pages, [ ...nestedPaths, ...doc.contextPaths ])
+      nestedPaths.forEach(p => {
+        if (!pages[p]) {
+          console.log("missing page for "+p)
+        }
+      })
+      const nestedDocs = nestedPaths.map(p => pages[p]);
+      await Promise.all(nestedDocs.map(appendQueueToPage));
+      await loadMorePages(pages, nestedDocs.flatMap(gatherNestedPaths));
 
       return pages;
     }
 
     function gatherNestedPaths(doc) {
-      return RefStringFields.flatMap(field => doc[field]).filter(s => s && s.startsWith && s.startsWith("/"));
+      return RefStringFields.
+        flatMap(field => {
+          if (!doc[field]) return
+          return doc[field].flatMap(s => {
+            if (typeof s === "string") {
+              if (s.startsWith("/")) {
+                return s
+              }
+            } else {
+              return gatherNestedPaths(s)
+            }
+          })
+        }).
+        filter(s => !!s)
     }
 
     async function loadMorePages(pages, list) {
       if (!list) return;
       if (!list.every(s => typeof s === "string")) {
-        console.log(list)
         throw("invalid list items")
       }
 

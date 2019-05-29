@@ -39,6 +39,6 @@ app.route('/brain/*', require('./views/main'))
 module.exports = app.mount('body')
 
 function redirectIndex(state,emit) {
-  emit('replaceState', '#/index');
+  emit('replaceState', '/brain#/index');
   return html`<body>Redirecting ...</body>`;
 }
