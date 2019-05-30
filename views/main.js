@@ -157,6 +157,7 @@ function view(state, emit) {
   }
 
   function deriveTitle(n) {
+    if (!n) return "Missing Page"
     return n.title || n.type || n.join || n.link || "Note";
   }
 
