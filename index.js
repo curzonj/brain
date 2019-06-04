@@ -3,7 +3,6 @@ require('babel-polyfill')
 const html = require('choo/html');
 const css = require('sheetify')
 const choo = require('choo')
-const sha256 = require('js-sha256')
 
 css('tachyons')
 

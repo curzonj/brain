@@ -2,10 +2,14 @@ module.exports = store;
 
 const PouchDB = require('pouchdb');
 const reg = require('../lib/event_helper')('pouchdb');
-const sha256 = require('js-sha256')
+const md5 = require('blueimp-md5')
 
 const NestedFieldNames = ['queue', 'next', 'later', 'stories', 'list']
 const RefStringFields = [ ...NestedFieldNames, 'src', 'mentions', 'related' ]
+
+function hash(s) {
+  return md5(s)
+}
 
 function store(state, e) {
   state.pages = {};
@@ -20,7 +24,7 @@ function store(state, e) {
     });
 
     function getTopic(topicKey) {
-      return db.get("$/topics/"+sha256(topicKey))
+      return db.get("$/topics/"+hash(topicKey))
     }
 
     reg('note', addNote, state, e)
@@ -95,7 +99,7 @@ function store(state, e) {
     async function addNote({ topic_id, value }) {
       const nonce = `${Date.now()}-${randomString(8)}`
       const text = value.trim()
-      const topicKey = sha256(topic_id)
+      const topicKey = hash(topic_id)
       const doc = {
         _id: `$/queue/${topicKey}/${nonce}`,
         topic_id: topic_id,
@@ -118,7 +122,7 @@ function store(state, e) {
       }
 
       const { id: topic_id, queue } = doc
-      const topicKey = sha256(topic_id)
+      const topicKey = hash(topic_id)
       const items = await db.allDocs({
         include_docs: true,
         startkey: `$/queue/${topicKey}`,
@@ -183,7 +187,7 @@ function store(state, e) {
         throw("invalid list items")
       }
 
-      const ids = list.map(s => "$/topics/"+sha256(s))
+      const ids = list.map(s => "$/topics/"+hash(s))
 
       const { rows } = await db.allDocs({
         include_docs: true,

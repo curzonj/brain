@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "babel-polyfill": "^6.26.0",
+    "blueimp-md5": "^2.10.0",
     "choo": "^6.13.3",
     "choo-service-worker": "^2.4.0",
     "js-yaml": "^3.13.1",
