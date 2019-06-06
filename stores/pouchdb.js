@@ -146,8 +146,8 @@ function store(state, e) {
 
       pages[doc.id] = doc
       await appendQueueToPage(doc)
-      doc.context = doc.context ? doc.context.split("/") : []
-      doc.contextPaths = doc.context.slice(1).map((v, i) => "/"+([ ...doc.context ].slice(0, i+1).join("/")));
+      doc.context = doc.context ? doc.context.split("/").slice(1) : []
+      doc.contextPaths = doc.context.map((v, i) => "/"+([ ...doc.context ].slice(0, i+1).join("/")));
       const nestedPaths = gatherNestedPaths(doc)
       await loadMorePages(pages, [ ...nestedPaths, ...doc.contextPaths ])
       nestedPaths.forEach(p => {

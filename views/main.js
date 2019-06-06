@@ -43,7 +43,7 @@ const topCss = css`
       margin: 5px;
       box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.3);
       border: 1px solid #ffffff;
-      padding: 28px 42px 42px 42px;
+      padding: 30px 30px 30px 30px;
       border-radius: 2px;
     }
   }
@@ -82,6 +82,10 @@ const topCss = css`
   :host section {
     margin-bottom: 16px;
     background-color: #ffffff;
+  }
+
+  :host section p {
+    margin-block-end: 0;
   }
 
   :host .title {
@@ -236,11 +240,15 @@ function view(state, emit) {
     }
 
     return section(html`
-      <h2 class="title">${getTitle(doc)}</h2>
+      ${maybe(getTitle(doc), h2title)}
       ${maybe(doc.text, p)}
       ${maybe(doc.list, renderSectionNodeDivs)}
       ${eachListField(doc, sectionDivFn)}
     `);
+  }
+
+  function h2title(t) {
+    return html`<h2 class="title">${t}</h2>`
   }
 
   function renderSectionNodeDivs(list) {
@@ -298,11 +306,16 @@ function view(state, emit) {
         return refLink(item.id, item.title)
       }
 
+      if (!item.text) {
+        return refLink(item.id, "Unknown")
+      }
+
       return html`
-        ${maybe(item.text, p)}
-        ${maybe(item.mentions, simpleList)}
-        ${renderSrc(item)}
-        ${renderMoreRef(item)}
+        <p>
+          ${item.text}
+          ${renderSrc(item)}
+          ${renderMoreRef(item)}
+        </p>
       `;
     }
   }
@@ -310,13 +323,15 @@ function view(state, emit) {
   function renderSrc(node) {
     if (!node.src) return
     if (typeof node.src === "string") {
-      return html`src: ${renderTextItem(node.src)}`
+      return html`- ${renderTextItem(node.src)}`
     }
     return html`<pre>${JSON.stringify(node.src)}</pre>`;
   }
 
   function renderMoreRef(node) {
-    if (node.id) return refLink(node.id, "more")
+    if (node.id) {
+      return html` (${refLink(node.id, "more", "moreLink")})`
+    }
   }
 
   function renderRef({ ref, label }) {
