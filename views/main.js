@@ -153,7 +153,7 @@ function view(state, emit) {
   `;
 
   function breadcrumbs() {
-    if (doc.context.length === 0) return;
+    if (!doc.context || doc.context.length === 0) return;
     const titleList = doc.contextPaths.map(p => state.pages[p]).map(deriveTitle)
     const titleListHtml = titleList.flatMap((t,i) => [ refLink(doc.contextPaths[i], t, "refBreadcrumb"), raw("&gt;") ])
 
