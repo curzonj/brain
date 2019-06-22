@@ -1,7 +1,5 @@
 const html = require('choo/html');
 const css = require('sheetify');
-const yaml = require('js-yaml');
-const assert = require('assert');
 
 const body = require('../lib/layout');
 const withMenu = require('../lib/menu');
@@ -37,7 +35,7 @@ function view(state, emit) {
   return withMenu(menuItems, form)();
 
   function onkeydown(e) {
-    if (e.which == 13 && (e.metaKey || e.shiftKey)) done(e);
+    if (e.which === 13 && (e.metaKey || e.shiftKey)) done(e);
   }
 
   function done(e) {
@@ -47,11 +45,11 @@ function view(state, emit) {
     if (value !== '') {
       const doc = state.pages[state.params.wildcard];
       emit(state.events.pouchdb_note, {
-        topic_id: doc.id,
-        value
+        topicId: doc.id,
+        value,
       });
     }
 
-    emit('replaceState', '#'+state.params.wildcard);
+    emit('replaceState', `#${state.params.wildcard}`);
   }
 }

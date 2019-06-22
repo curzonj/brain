@@ -1,7 +1,5 @@
 const html = require('choo/html');
 const css = require('sheetify');
-const yaml = require('js-yaml');
-const assert = require('assert');
 
 const body = require('../lib/layout');
 const withMenu = require('../lib/menu');
@@ -38,13 +36,13 @@ function view(state, emit) {
   return withMenu(menuItems, form)();
 
   function onkeydown(e) {
-    if (e.which == 13 && (e.metaKey || e.shiftKey)) done(e);
+    if (e.which === 13 && (e.metaKey || e.shiftKey)) done(e);
   }
 
   function done(e) {
     e.preventDefault();
 
     const { value } = document.getElementById('setConfigTextArea');
-    emit(state.events.pouchdb_config, value)
+    emit(state.events.pouchdb_config, value);
   }
 }
