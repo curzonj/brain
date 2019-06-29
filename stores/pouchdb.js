@@ -107,6 +107,9 @@ function store(state, e) {
     async function addNote({ topicId, value }) {
       const nonce = `${Date.now()}-${randomString(8)}`;
       const text = value.trim();
+      if (topicId === '/index') {
+        topicId = '/inbox';
+      }
       const topicKey = hash(topicId);
       const doc = {
         _id: `$/queue/${topicKey}/${nonce}`,
