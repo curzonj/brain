@@ -300,7 +300,7 @@ function view(state, emit) {
         return renderRef({ ref: item });
       }
       if (item.startsWith('http')) {
-        return link(item);
+        return buildAnchorElement(item);
       }
       return p(item);
     }
@@ -308,7 +308,7 @@ function view(state, emit) {
       return renderRef(item);
     }
     if (item.link || item.search) {
-      return link(item);
+      return buildAnchorElement(item);
     }
     if (item.title) {
       return refLink(item.id, item.title);
@@ -354,7 +354,7 @@ function view(state, emit) {
     return renderTextItem(state.pages[ref]);
   }
 
-  function link(obj) {
+  function buildAnchorElement(obj) {
     const mobile = document.documentElement.clientWidth < 800;
 
     if (typeof obj === 'string' || obj.link) {
@@ -407,9 +407,9 @@ function view(state, emit) {
     return undefined;
   }
 
-  function refLink(link2, text, cssClass = 'refLink') {
+  function refLink(link, text, cssClass = 'refLink') {
     return html`
-      <a class=${cssClass} href="#${encodeURI(link)}">${text || link2}</a>
+      <a class=${cssClass} href="#${encodeURI(link)}">${text || link}</a>
     `;
   }
 

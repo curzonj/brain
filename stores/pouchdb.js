@@ -118,10 +118,12 @@ function store(state, e) {
       };
 
       const page = state.pages[state.params.wildcard];
-      if (!page.queue) {
-        page.queue = [];
+      if (page.id === topicId) {
+        if (!page.queue) {
+          page.queue = [];
+        }
+        page.queue.unshift(text);
       }
-      page.queue.unshift(text);
 
       db.put(doc);
       e.emit(state.events.RENDER);
