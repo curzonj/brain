@@ -1,72 +1,22 @@
 module.exports = store;
 
-const PouchDB = require('pouchdb');
-const md5 = require('blueimp-md5');
 const reg = require('../lib/event_helper')('pouchdb');
+const db = require('../lib/db');
 
 const NestedFieldNames = ['queue', 'next', 'later', 'stories', 'list'];
 const RefStringFields = [...NestedFieldNames, 'src', 'mentions', 'related'];
-
-function hash(s) {
-  return md5(s);
-}
 
 function store(state, e) {
   state.pages = {};
 
   e.on('DOMContentLoaded', async () => {
-    if (window.location.origin === 'https://localhost:8080') {
-      await new PouchDB('wiki').destroy();
-    }
-
-    const db = new PouchDB('wiki', {
-      auto_compaction: true,
-    });
-
-    function getTopic(topicKey) {
-      return db.get(`$/topics/${hash(topicKey)}`);
-    }
-
     reg('note', addNote, state, e);
     reg('config', setConfig, state, e);
-
-    if (validateOrRedirect(state, e)) {
-      establishConnection();
-    }
-
     e.on('navigate', updatePages);
 
-    function establishConnection() {
-      const config = JSON.parse(localStorage.couchdb_target);
-      const remoteDb = new PouchDB(config.url, config);
-
-      db.sync(remoteDb, {
-        live: true,
-        retry: true,
-      })
-        .on('change', change => {
-          // console.log("pouchdb:change", change)
-        })
-        .on('paused', info => {
-          // console.log("pouchdb:paused", info)
-          updatePages();
-        })
-        .on('active', info => {
-          // console.log("pouchdb:active", info)
-        })
-        .on('error', err => {
-          // console.log("pouchdb:error", err)
-          blockUpdates(err);
-        })
-        .on('denied', err => {
-          // console.log('pouchdb:denied', err);
-          blockUpdates(err);
-        });
-    }
-
-    function blockUpdates(err) {
-      state.pouchdbBroken = JSON.stringify(err);
-      e.emit(state.events.RENDER);
+    if (validateOrRedirect(state, e)) {
+      await db.establishConnection(JSON.parse(localStorage.couchdb_target));
+      await updatePages();
     }
 
     async function updatePages() {
@@ -77,16 +27,6 @@ function store(state, e) {
       state.loadedFor = loading;
 
       e.emit(state.events.RENDER);
-    }
-
-    function randomString(length) {
-      let text = '';
-      const possible =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      for (let i = 0; i < length; i += 1) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-      }
-      return text;
     }
 
     async function setConfig(value) {
@@ -101,23 +41,15 @@ function store(state, e) {
       }
 
       localStorage.couchdb_target = value;
-      establishConnection();
+
+      await db.establishConnection(JSON.parse(localStorage.couchdb_target));
+      await updatePages();
     }
 
     async function addNote({ topicId, value }) {
-      const nonce = `${Date.now()}-${randomString(8)}`;
       const text = value.trim();
-      if (topicId === '/index') {
-        topicId = '/inbox';
-      }
-      const topicKey = hash(topicId);
-      const doc = {
-        _id: `$/queue/${topicKey}/${nonce}`,
-        topic_id: topicId,
-        text,
-      };
-
       const page = state.pages[state.params.wildcard];
+
       if (page.id === topicId) {
         if (!page.queue) {
           page.queue = [];
@@ -125,36 +57,28 @@ function store(state, e) {
         page.queue.unshift(text);
       }
 
-      db.put(doc);
+      await db.addNote({ topicId, text });
       e.emit(state.events.RENDER);
     }
 
     async function appendQueueToPage(doc) {
+      const notes = await db.getNotes(doc.id);
+      if (notes.length === 0) {
+        return;
+      }
+
       if (!doc.queue) {
         doc.queue = [];
       }
 
-      const topicKey = hash(doc.id);
-      const items = await db
-        .allDocs({
-          include_docs: true,
-          startkey: `$/queue/${topicKey}`,
-          endkey: `$/queue/${topicKey}\uFFF0`,
-        })
-        .then(({ rows }) => rows.map(({ doc: n }) => n));
-
-      items.forEach(item => {
+      notes.forEach(item => {
         doc.queue.unshift(item);
       });
-
-      if (doc.queue && doc.queue.length === 0) {
-        delete doc.queue;
-      }
     }
 
     async function buildPages(topicId) {
       const pages = {};
-      const doc = await getTopic(topicId).catch(console.log);
+      const doc = await db.getTopic(topicId).catch(console.log);
       if (!doc) return pages;
 
       pages[doc.id] = doc;
@@ -204,19 +128,10 @@ function store(state, e) {
         throw new Error('invalid list items');
       }
 
-      const ids = list.map(s => `$/topics/${hash(s)}`);
-
-      const { rows } = await db.allDocs({
-        include_docs: true,
-        keys: ids,
+      const topics = await db.getManyTopics(list);
+      topics.forEach(d => {
+        pages[d.id] = d;
       });
-
-      rows
-        .filter(n => n.doc)
-        .map(n => n.doc)
-        .forEach(d => {
-          pages[d.id] = d;
-        });
     }
   });
 }

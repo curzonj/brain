@@ -13,7 +13,7 @@
     "url": "git+https://github.com/curzonj/brain.git"
   },
   "scripts": {
-    "deploy": "rm -r dist/* && bankai build index.js --base=/brain && mv dist/brain/* dist/ && rmdir dist/brain && gh-pages -d dist",
+    "deploy": "rm -r dist/* && bankai build index.js --base=/brain && ([ ! -d dist/brain ] || (mv dist/brain/* dist/ && rmdir dist/brain)) && gh-pages -d dist",
     "create": "choo-scaffold",
     "inspect": "bankai inspect index.js",
     "start": "bankai start index.js",
@@ -25,10 +25,15 @@
     "blueimp-md5": "^2.10.0",
     "choo": "^6.13.3",
     "choo-service-worker": "^2.4.0",
+    "cuid": "^2.1.6",
     "js-yaml": "^3.13.1",
+    "level-js": "^4.0.1",
+    "level-promise": "^2.1.1",
+    "levelup": "^4.1.0",
     "nanoscheduler": "^1.0.3",
     "pouchdb": "^7.0.0",
     "sheetify": "^7.3.3",
+    "subleveldown": "^4.1.0",
     "tachyons": "^4.11.1"
   },
   "devDependencies": {
