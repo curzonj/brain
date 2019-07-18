@@ -1,2 +1,2 @@
-self.addEventListener("fetch",t=>{const e=t.request;navigator.onLine?t.respondWith(fetch(e).then(t=>{if("GET"===e.method&&e.url.startsWith("http")&&!e.headers.get("authorization")){const c=t.clone();caches.open("v1").then(t=>t.put(e,c)).catch(console.log)}return t}).catch(async t=>{try{const h=await caches.match(e);if(!h)throw t;return h}catch(c){throw console.log(c),t}})):t.respondWith(caches.match(e))});
+self.addEventListener("fetch",t=>{const e=t.request;navigator.onLine?t.respondWith(fetch(e).then(t=>{if("GET"===e.method&&e.url.startsWith("http")&&!e.headers.get("authorization")){const n=t.clone();caches.open("v1").then(t=>t.put(e,n)).catch(console.log)}return t})):t.respondWith(caches.match(e))});
 //# sourceMappingURL=bankai-service-worker.js.map
