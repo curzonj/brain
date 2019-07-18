@@ -22,7 +22,6 @@ const ListFieldNames = [
   ['mentions', 'Mentions'],
   ['stories', 'Stories'],
   ['links', 'Links'],
-  ['queue', 'Queue'],
 ];
 
 const topCss = css`

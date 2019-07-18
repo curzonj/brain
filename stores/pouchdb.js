@@ -1,10 +1,11 @@
-module.exports = store;
-
+const { reportError } = require('../lib/errors');
 const reg = require('../lib/event_helper')('pouchdb');
 const db = require('../lib/db');
 
 const NestedFieldNames = ['queue', 'next', 'later', 'stories', 'list'];
 const RefStringFields = [...NestedFieldNames, 'src', 'mentions', 'related'];
+
+module.exports = store;
 
 function store(state, e) {
   state.pages = {};
@@ -14,9 +15,13 @@ function store(state, e) {
     reg('config', setConfig, state, e);
     e.on('navigate', updatePages);
 
-    if (validateOrRedirect(state, e)) {
-      await db.establishConnection(JSON.parse(localStorage.couchdb_target));
+    const dbTestResult = await db.isConfigured();
+
+    if (dbTestResult) {
+      await db.sync().catch(reportError);
       await updatePages();
+    } else {
+      e.emit('replaceState', '/brain#login');
     }
 
     async function updatePages() {
@@ -30,20 +35,10 @@ function store(state, e) {
     }
 
     async function setConfig(value) {
-      if (!value || value === '') {
-        return;
+      if (db.configure(value)) {
+        await db.sync();
+        await updatePages();
       }
-
-      try {
-        JSON.parse(value);
-      } catch (err) {
-        return;
-      }
-
-      localStorage.couchdb_target = value;
-
-      await db.establishConnection(JSON.parse(localStorage.couchdb_target));
-      await updatePages();
     }
 
     async function addNote({ topicId, value }) {
@@ -94,8 +89,7 @@ function store(state, e) {
           console.log(`missing page for ${p}`);
         }
       });
-      const nestedDocs = nestedPaths.map(p => pages[p]);
-      await Promise.all(nestedDocs.map(appendQueueToPage));
+      const nestedDocs = nestedPaths.map(p => pages[p]).filter(p => !!p);
       await loadMorePages(pages, nestedDocs.flatMap(gatherNestedPaths));
 
       return pages;
@@ -129,22 +123,11 @@ function store(state, e) {
       }
 
       const topics = await db.getManyTopics(list);
-      topics.forEach(d => {
-        pages[d.id] = d;
-      });
+      topics
+        .filter(d => !!d)
+        .forEach(d => {
+          pages[d.id] = d;
+        });
     }
   });
-}
-
-function validateOrRedirect(state, e) {
-  try {
-    if (localStorage.couchdb_target && JSON.parse(localStorage.couchdb_target))
-      return true;
-  } catch (err) {
-    console.error(err);
-  }
-
-  state.rawConfig = localStorage.couchdb_target;
-  e.emit('replaceState', '/brain#login');
-  return false;
 }

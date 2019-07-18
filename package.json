@@ -24,6 +24,7 @@
     "babel-polyfill": "^6.26.0",
     "blueimp-md5": "^2.10.0",
     "choo": "^6.13.3",
+    "choo-devtools": "^2.5.1",
     "choo-service-worker": "^2.4.0",
     "cuid": "^2.1.6",
     "js-yaml": "^3.13.1",
@@ -38,7 +39,6 @@
   },
   "devDependencies": {
     "bankai": "^9.15.0",
-    "choo-devtools": "^2.5.1",
     "choo-scaffold": "^1.2.0",
     "dependency-check": "^3.3.0",
     "eslint": "^5.16.0",
