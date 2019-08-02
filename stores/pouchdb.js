@@ -18,8 +18,21 @@ function store(state, e) {
     const dbTestResult = await db.isConfigured();
 
     if (dbTestResult) {
-      await db.sync().catch(reportError);
+      await db.sync().catch(error =>
+        reportError(error, {
+          at: 'db.sync',
+        })
+      );
       await updatePages();
+
+      // async but we won't wait for it
+      db.uploadNotes().catch(error =>
+        reportError(error, {
+          file: 'db',
+          fn: 'uploadNotes',
+          at: 'catch',
+        })
+      );
     } else {
       e.emit('replaceState', '/brain#login');
     }
