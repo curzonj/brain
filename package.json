@@ -13,7 +13,7 @@
     "url": "git+https://github.com/curzonj/brain.git"
   },
   "scripts": {
-    "deploy": "rm -r dist/* && bankai build index.js --base=/brain && ([ ! -d dist/brain ] || (mv dist/brain/* dist/ && rmdir dist/brain)) && gh-pages -d dist",
+    "deploy": "rm -r dist/* && bankai build index.js --base=/brain && ([ ! -d dist/brain ] || (mv dist/brain/* dist/ && rmdir dist/brain)) && echo 'Watch for gpg now...' && gh-pages -d dist",
     "create": "choo-scaffold",
     "inspect": "bankai inspect index.js",
     "start": "bankai start index.js",
