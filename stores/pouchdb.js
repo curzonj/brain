@@ -15,6 +15,10 @@ function store(state, e) {
     reg('config', setConfig, state, e);
     e.on('navigate', updatePages);
 
+    syncDatabase().catch(console.log);
+  });
+
+  async function syncDatabase() {
     const dbTestResult = await db.isConfigured();
 
     if (dbTestResult) {
@@ -36,111 +40,111 @@ function store(state, e) {
     } else {
       e.emit('replaceState', '/brain#login');
     }
+  }
 
-    async function updatePages() {
-      if (state.loadedFor === state.params.wildcard) return;
+  async function updatePages() {
+    if (state.loadedFor === state.params.wildcard) return;
 
-      const loading = state.params.wildcard;
-      state.pages = await buildPages(loading);
-      state.loadedFor = loading;
+    const loading = state.params.wildcard;
+    state.pages = await buildPages(loading);
+    state.loadedFor = loading;
 
-      e.emit(state.events.RENDER);
+    e.emit(state.events.RENDER);
+  }
+
+  async function setConfig(value) {
+    if (db.configure(value)) {
+      await db.sync();
+      await updatePages();
     }
+  }
 
-    async function setConfig(value) {
-      if (db.configure(value)) {
-        await db.sync();
-        await updatePages();
+  async function addNote({ topicId, value }) {
+    const text = value.trim();
+    const page = state.pages[state.params.wildcard];
+
+    if (page.id === topicId) {
+      if (!page.queue) {
+        page.queue = [];
       }
+      page.queue.unshift(text);
     }
 
-    async function addNote({ topicId, value }) {
-      const text = value.trim();
-      const page = state.pages[state.params.wildcard];
+    await db.addNote({ topicId, text });
+    e.emit(state.events.RENDER);
+  }
 
-      if (page.id === topicId) {
-        if (!page.queue) {
-          page.queue = [];
-        }
-        page.queue.unshift(text);
+  async function appendQueueToPage(doc) {
+    const notes = await db.getNotes(doc.id);
+    if (notes.length === 0) {
+      return;
+    }
+
+    if (!doc.queue) {
+      doc.queue = [];
+    }
+
+    notes.forEach(item => {
+      doc.queue.unshift(item);
+    });
+  }
+
+  async function buildPages(topicId) {
+    const pages = {};
+    const doc = await db.getTopic(topicId).catch(console.log);
+    if (!doc) return pages;
+
+    pages[doc.id] = doc;
+    await appendQueueToPage(doc);
+    doc.context = doc.context ? doc.context.split('/').slice(1) : [];
+    doc.contextPaths = doc.context.map(
+      (v, i) => `/${[...doc.context].slice(0, i + 1).join('/')}`
+    );
+    const nestedPaths = gatherNestedPaths(doc);
+    await loadMorePages(pages, [...nestedPaths, ...doc.contextPaths]);
+    nestedPaths.forEach(p => {
+      if (!pages[p]) {
+        console.log(`missing page for ${p}`);
       }
+    });
+    const nestedDocs = nestedPaths.map(p => pages[p]).filter(p => !!p);
+    await loadMorePages(pages, nestedDocs.flatMap(gatherNestedPaths));
 
-      await db.addNote({ topicId, text });
-      e.emit(state.events.RENDER);
-    }
+    return pages;
+  }
 
-    async function appendQueueToPage(doc) {
-      const notes = await db.getNotes(doc.id);
-      if (notes.length === 0) {
-        return;
+  function gatherNestedPaths(doc) {
+    return RefStringFields.flatMap(field => {
+      if (typeof doc[field] === 'string' && doc[field].startsWith('/')) {
+        return doc[field];
       }
-
-      if (!doc.queue) {
-        doc.queue = [];
-      }
-
-      notes.forEach(item => {
-        doc.queue.unshift(item);
-      });
-    }
-
-    async function buildPages(topicId) {
-      const pages = {};
-      const doc = await db.getTopic(topicId).catch(console.log);
-      if (!doc) return pages;
-
-      pages[doc.id] = doc;
-      await appendQueueToPage(doc);
-      doc.context = doc.context ? doc.context.split('/').slice(1) : [];
-      doc.contextPaths = doc.context.map(
-        (v, i) => `/${[...doc.context].slice(0, i + 1).join('/')}`
-      );
-      const nestedPaths = gatherNestedPaths(doc);
-      await loadMorePages(pages, [...nestedPaths, ...doc.contextPaths]);
-      nestedPaths.forEach(p => {
-        if (!pages[p]) {
-          console.log(`missing page for ${p}`);
-        }
-      });
-      const nestedDocs = nestedPaths.map(p => pages[p]).filter(p => !!p);
-      await loadMorePages(pages, nestedDocs.flatMap(gatherNestedPaths));
-
-      return pages;
-    }
-
-    function gatherNestedPaths(doc) {
-      return RefStringFields.flatMap(field => {
-        if (typeof doc[field] === 'string' && doc[field].startsWith('/')) {
-          return doc[field];
-        }
-        if (Array.isArray(doc[field])) {
-          return doc[field].flatMap(s => {
-            if (typeof s === 'string') {
-              if (s.startsWith('/')) {
-                return s;
-              }
-            } else {
-              return gatherNestedPaths(s);
+      if (Array.isArray(doc[field])) {
+        return doc[field].flatMap(s => {
+          if (typeof s === 'string') {
+            if (s.startsWith('/')) {
+              return s;
             }
-            return undefined;
-          });
-        }
-        return null;
-      }).filter(s => !!s);
-    }
-
-    async function loadMorePages(pages, list) {
-      if (!list) return;
-      if (!list.every(s => typeof s === 'string')) {
-        throw new Error('invalid list items');
-      }
-
-      const topics = await db.getManyTopics(list);
-      topics
-        .filter(d => !!d)
-        .forEach(d => {
-          pages[d.id] = d;
+          } else {
+            return gatherNestedPaths(s);
+          }
+          return undefined;
         });
+      }
+      return null;
+    }).filter(s => !!s);
+  }
+
+  async function loadMorePages(pages, list) {
+    if (!list) return;
+    if (!list.every(s => typeof s === 'string')) {
+      throw new Error('invalid list items');
     }
-  });
+
+    const topics = await db.getManyTopics(list);
+    topics
+      .filter(d => !!d)
+      .forEach(d => {
+        pages[d.id] = d;
+      });
+  }
 }
