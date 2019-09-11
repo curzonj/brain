@@ -32,7 +32,7 @@
     "level-promise": "^2.1.1",
     "levelup": "^4.1.0",
     "nanoscheduler": "^1.0.3",
-    "pouchdb": "^7.0.0",
+    "pouchdb": ">=7.1.0",
     "sheetify": "^7.3.3",
     "subleveldown": "^4.1.0",
     "tachyons": "^4.11.1"
