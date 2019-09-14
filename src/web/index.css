@@ -1,0 +1,31 @@
+@media screen and (min-width: 800px) {
+  body {
+    margin: 16px;
+  }
+}
+
+body {
+  display: block;
+  height: 100%;
+
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.3em;
+
+  word-wrap: break-word;
+  color: #333333;
+  background-color: #f4f4f4;
+  fill: #333333;
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  text-decoration: none;
+  font-weight: 500;
+  color: #5778d8;
+}
