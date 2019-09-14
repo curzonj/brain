@@ -34,7 +34,7 @@ app.use((state, emitter) => {
   });
 });
 
-app.use(require('./stores/pouchdb'));
+app.use(require('./stores/pages'));
 
 app.route('/', redirectIndex);
 app.route('/brain', redirectIndex);

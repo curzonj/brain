@@ -43,6 +43,6 @@ function view(state, emit) {
     e.preventDefault();
 
     const { value } = document.getElementById('setConfigTextArea');
-    emit(state.events.pouchdb_config, value);
+    emit(state.events.pages_config, value);
   }
 }

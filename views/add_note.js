@@ -44,7 +44,7 @@ function view(state, emit) {
     const { value } = document.getElementById('addNoteTextArea');
     if (value !== '') {
       const doc = state.pages[state.params.wildcard];
-      emit(state.events.pouchdb_note, {
+      emit(state.events.pages_note, {
         topicId: doc.id,
         value,
       });
