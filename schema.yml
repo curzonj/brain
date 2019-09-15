@@ -62,9 +62,9 @@ definitions:
       - _id
       - id
       - created_at
-      # patches is actually required. This schema is only used for updates
-      # of couchdb topic update objects
-      - patches
+    oneOf:
+      - required: [patches]
+      - required: [_deleted]
     properties:
       <<: *editorNodeProperties
       _deleted:
@@ -92,6 +92,14 @@ definitions:
         $ref: "#/definitions/slashRefList"
       queue:
         $ref: "#/definitions/slashRefList"
+      seq:
+        type: string
+      topic_id:
+        type: string
+    dependencies:
+      # these are present when deleting notes in the queue
+      seq: [_deleted]
+      topic_id: [_deleted]
   objRefStringList:
     type: array
     uniqueItems: true
