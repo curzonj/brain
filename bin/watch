@@ -1,3 +1,3 @@
 #!/bin/sh
 
-exec reflex -R '^databases' -R node_modules -R lib -r '\.ts$' make $1
+exec reflex -R '^databases' -R node_modules -R lib -R client -r '\.(ts|tsx)$' make $1

@@ -1,0 +1,17 @@
+.menu {
+  margin: 8px;
+  padding: 0;
+  list-style-type: none;
+  overflow: hidden;
+}
+
+.menu li {
+  font-size: 1.5rem;
+  float: right;
+  margin: 8px;
+}
+
+.menu li .link-button {
+	/* reset things that button clears */
+  font-size: 1.5rem;
+}

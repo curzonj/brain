@@ -11,8 +11,8 @@ declare module 'quadstore' {
   }
 
   export class QuadStore {
-    public constructor(db: AbstractLevelDOWN<any, any>, options: object);
+    constructor(db: AbstractLevelDOWN<any, any>, options: object);
 
-    public put(quads: Quad[]): Promise<void>;
+    put(quads: Quad[]): Promise<void>;
   }
 }

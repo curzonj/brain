@@ -29,3 +29,22 @@ a {
   font-weight: 500;
   color: #5778d8;
 }
+
+.link-button {
+	/* 
+		Make a button like a link
+		https://github.com/evcohen/eslint-plugin-jsx-a11y/blob/master/docs/rules/anchor-is-valid.md#case-i-understand-the-previous-cases-but-still-need-an-element-resembling-a-link-that-is-purely-clickable
+	*/
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline;
+  margin: 0;
+  padding: 0;
+
+	/* add link values */
+  line-height: 1.3rem;
+  text-decoration: none;
+  font-weight: 500;
+  color: #5778d8;
+}
