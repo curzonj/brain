@@ -1,29 +1,3 @@
-#!/usr/bin/env node
+#!/bin/sh
 
-const PouchDB = require("pouchdb")
-
-const CustomPouchDB = PouchDB.defaults({prefix: `${__dirname}/../databases/` });
-const pouchDbHandler = require('express-pouchdb')(CustomPouchDB, {
-  configPath: "config/localui_pouch.json",
-  mode: 'fullCouchDB', // specified for clarity. It's the default so not necessary.
-  overrideMode: {
-    exclude: [
-      'routes/authentication',
-      // disabling the above, gives error messages which require you to disable the
-      // following parts too. Which makes sense since they depend on it.
-      'routes/authorization',
-      'routes/session'
-    ]
-  }
-});
-
-const morgan = require("morgan")
-const express = require('express');
-const app = express();
-
-app.use(morgan('combined'))
-//app.use(require('cors')(pouchDbHandler.couchConfig._config.cors))
-app.use('/', pouchDbHandler)
-
-app.listen(3001);
-console.log("Go to http://localhost:3001/_utils/")
+exec npx ts-node src/cli/httpPouchDB.ts

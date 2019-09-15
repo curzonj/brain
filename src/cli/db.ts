@@ -1,32 +1,34 @@
 import PouchDB from 'pouchdb';
 import sleep from 'sleep-promise';
-import * as fs from "fs";
+import * as fs from 'fs';
 import { timingAsync } from './timing';
 import pouchdbAdapterMemory from 'pouchdb-adapter-memory';
 
 PouchDB.plugin(pouchdbAdapterMemory);
 
-const config = JSON.parse(fs.readFileSync(`${__dirname}/../../config/sync.json`, "utf8"));
+const config = JSON.parse(
+  fs.readFileSync(`${__dirname}/../../config/sync.json`, 'utf8')
+);
 
 export const remote = new PouchDB<any>(config.url, { auth: config.auth });
-export const InMemPouchDB = PouchDB.defaults({ adapter: 'memory' })
+export const InMemPouchDB = PouchDB.defaults({ adapter: 'memory' });
 
 export function getPouchDBClass() {
   if (process.env.NODE_ENV === 'test') {
     return InMemPouchDB;
   } else {
-    return PouchDB.defaults({prefix: `${__dirname}/../../databases/` });
+    return PouchDB.defaults({ prefix: `${__dirname}/../../databases/` });
   }
 }
 
-async function openOrWait(path: string) : Promise<PouchDB.Database<any>> {
+async function openOrWait(path: string): Promise<PouchDB.Database<any>> {
   try {
     const db = new PouchDB<any>(path);
-    const info = await db.info();
+    await db.info();
 
     return db;
-  } catch(e) {
-    if (e.stack.startsWith("OpenError")) {
+  } catch (e) {
+    if (e.stack.startsWith('OpenError')) {
       await sleep(500);
       return openOrWait(path);
     } else {
@@ -36,7 +38,9 @@ async function openOrWait(path: string) : Promise<PouchDB.Database<any>> {
 }
 
 const databasePromise = Promise.resolve().then(async () => {
-  const prodDB = await timingAsync('databasePromise.openOrWait', () => openOrWait(`${__dirname}/../../databases/gityaml`));
+  const prodDB = await timingAsync('databasePromise.openOrWait', () =>
+    openOrWait(`${__dirname}/../../databases/gityaml`)
+  );
 
   if (process.env.NODE_ENV !== 'test') {
     return prodDB;

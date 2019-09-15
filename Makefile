@@ -1,9 +1,10 @@
-.PHONY: test
+.PHONY: test lint
 
 test:
 	npx tsc
 	npx react-scripts test --watchAll=false
 
 lint:
-	# -f unix --fix
-	npx eslint './src/**/*.{ts,tsx}'
+	npx tsc
+	npx eslint --fix './src/**/*.{ts,tsx}'
+	# complete

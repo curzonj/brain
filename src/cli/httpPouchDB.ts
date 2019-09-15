@@ -1,13 +1,10 @@
-import PouchDB from 'pouchdb';
 import { getPouchDBClass, getDB } from './db';
-
-if (process.env.NODE_ENV !== 'test') {
-  console.log("Requires NODE_NEV=test");
-  process.exit(1);
-}
+import morgan from 'morgan';
+import express from 'express';
+import cors from 'cors';
 
 const pouchDbHandler = require('express-pouchdb')(getPouchDBClass(), {
-  configPath: "config/pouch_db.json",
+  configPath: 'config/pouch_db.json',
   mode: 'fullCouchDB', // specified for clarity. It's the default so not necessary.
   overrideMode: {
     exclude: [
@@ -15,27 +12,22 @@ const pouchDbHandler = require('express-pouchdb')(getPouchDBClass(), {
       // disabling the above, gives error messages which require you to disable the
       // following parts too. Which makes sense since they depend on it.
       'routes/authorization',
-      'routes/session'
-    ]
-  }
+      'routes/session',
+    ],
+  },
 });
 
-const morgan = require("morgan")
-const express = require('express');
 const app = express();
 
-const corsOptions = {
-  ...pouchDbHandler.couchConfig._config.cors,
-  origin: "https://localhost:8080",
-};
+app.use(morgan('combined'));
+app.use(cors(pouchDbHandler.couchConfig._config.cors));
+app.use('/', pouchDbHandler);
 
-app.use(morgan('combined'))
-app.use(require('cors')(corsOptions));
-app.use('/', pouchDbHandler)
-
-getDB().then(() => {
-  app.listen(3000);
-  console.log("listening on 3000")
-}).catch(err => {
-  console.error(err)
-});
+getDB()
+  .then(() => {
+    app.listen(3001);
+    console.log('Go to http://localhost:3001/_utils/');
+  })
+  .catch(err => {
+    console.error(err);
+  });

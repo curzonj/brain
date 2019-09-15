@@ -1,9 +1,9 @@
-import * as fs from "fs";
-import * as yaml from "js-yaml";
-import Ajv from "ajv";
-import $RefParser from "json-schema-ref-parser";
+import * as fs from 'fs';
+import * as yaml from 'js-yaml';
+import Ajv from 'ajv';
+import $RefParser from 'json-schema-ref-parser';
 
-const schemaContents = fs.readFileSync(`${__dirname}/../../schema.yml`, "utf8");
+const schemaContents = fs.readFileSync(`${__dirname}/../../schema.yml`, 'utf8');
 
 export function schemaSelector(definition: string): Ajv.ValidateFunction {
   const schemaDocument = yaml.safeLoad(schemaContents);
@@ -24,7 +24,11 @@ export function getSchemaContents(): Promise<DecodedSchema> {
   return schemaPromise;
 }
 
-export function getFieldType(schema: DecodedSchema, typeName: string, fieldName: string): string | undefined | DecodedSchema {
+export function getFieldType(
+  schema: DecodedSchema,
+  typeName: string,
+  fieldName: string
+): string | undefined | DecodedSchema {
   if (!schema.definitions) {
     return;
   }
@@ -39,7 +43,7 @@ export function getFieldType(schema: DecodedSchema, typeName: string, fieldName:
     return;
   }
 
-  if (typeof propDef.type === "string") {
+  if (typeof propDef.type === 'string') {
     return propDef.type;
   }
 

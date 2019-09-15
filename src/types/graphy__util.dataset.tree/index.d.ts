@@ -1,5 +1,5 @@
 declare module '@graphy/util.dataset.tree' {
-  import * as RDF from "rdf-js";
+  import * as RDF from 'rdf-js';
 
   function dataset_tree(): DatasetTree;
 

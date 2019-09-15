@@ -1,4 +1,4 @@
-import PouchDB from "pouchdb";
+import PouchDB from 'pouchdb';
 
 export interface ShortDoc {
   text?: string;
@@ -23,19 +23,30 @@ export interface DumbProps {
 }
 
 export interface DocChangeEntry {
-  op: "add" | "remove";
+  op: 'add' | 'remove';
   field: string;
   value: string;
 }
 
 export type LinkList = Link[];
 export type Link = string | LabeledLink | SearchLink;
-export interface SearchLink { search: string; }
-export interface LabeledLink { title: string; link: string; }
+export interface SearchLink {
+  search: string;
+}
+export interface LabeledLink {
+  title: string;
+  link: string;
+}
 export type EditorArrayItemTypes = Link | MaybeLabeledRef;
 export type DocArrayValueTypes = string[] | LinkList;
-export type RegularDocValueTypes = string[] | string | number | undefined | LinkList | DumbProps;
-export type DocValueTypes =  RegularDocValueTypes | DocChangeEntry[];
+export type RegularDocValueTypes =
+  | string[]
+  | string
+  | number
+  | undefined
+  | LinkList
+  | DumbProps;
+export type DocValueTypes = RegularDocValueTypes | DocChangeEntry[];
 
 export type ExistingDoc = PouchDB.Core.ExistingDocument<Doc>;
 export type DocUpdate = PouchDB.Core.PutDocument<Doc> & PouchDB.Core.IdMeta;
@@ -57,7 +68,9 @@ export type RefList = MaybeLabeledRef[];
 export type MaybeLabeledRef = string | LabeledRef;
 export type EditorStructure = Record<string, EditorDoc>;
 
-export function removeStorageAttributes(doc: ExistingDoc | DocUpdate): ShortDoc {
+export function removeStorageAttributes(
+  doc: ExistingDoc | DocUpdate
+): ShortDoc {
   const clone = { ...doc } as any;
 
   delete clone._rev;
@@ -71,15 +84,18 @@ export function removeStorageAttributes(doc: ExistingDoc | DocUpdate): ShortDoc 
 }
 
 export function isPatches(k: string, v: DocValueTypes): v is DocChangeEntry[] {
-  return Array.isArray(v) && k === "patches";
+  return Array.isArray(v) && k === 'patches';
 }
 
-export function isDocArrayField(k: string, v: DocValueTypes): v is DocArrayValueTypes {
-  return Array.isArray(v) && k !== "patches";
+export function isDocArrayField(
+  k: string,
+  v: DocValueTypes
+): v is DocArrayValueTypes {
+  return Array.isArray(v) && k !== 'patches';
 }
 
 export function isLabeledRef(l: any): l is LabeledRef {
-  if (typeof l === "string") {
+  if (typeof l === 'string') {
     return false;
   }
 
@@ -87,7 +103,7 @@ export function isLabeledRef(l: any): l is LabeledRef {
 }
 
 export function isSearchLink(l: any): l is SearchLink {
-  if (typeof l === "string") {
+  if (typeof l === 'string') {
     return false;
   }
 
@@ -95,7 +111,7 @@ export function isSearchLink(l: any): l is SearchLink {
 }
 
 export function isLabeledLink(l: any): l is LabeledLink {
-  if (typeof l === "string") {
+  if (typeof l === 'string') {
     return false;
   }
 
@@ -103,5 +119,5 @@ export function isLabeledLink(l: any): l is LabeledLink {
 }
 
 export function isProps(k: string, o: DocValueTypes): o is DumbProps {
-  return k === "props";
+  return k === 'props';
 }

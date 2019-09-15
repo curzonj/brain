@@ -1,7 +1,7 @@
-import encode from "encoding-down";
-import leveldown from "leveldown";
-import levelup from "levelup";
-import { QuadStore } from "quadstore";
+import encode from 'encoding-down';
+import leveldown from 'leveldown';
+import levelup from 'levelup';
+import { QuadStore } from 'quadstore';
 
 export function getLevelDB(name: string) {
   const options = {};
@@ -12,5 +12,5 @@ export function getLevelDB(name: string) {
 export function getQuadStore() {
   const options = {};
 
-  return new QuadStore(leveldown("databases/rdf"), options);
+  return new QuadStore(leveldown('databases/rdf'), options);
 }

@@ -16,7 +16,15 @@
     "jest": true
   },
   "rules": {
-    "prettier/prettier": ["error", { "singleQuote": true }]
+    "@typescript-eslint/camelcase": 0,
+    "@typescript-eslint/explicit-function-return-type": 0,
+    "@typescript-eslint/no-explicit-any": 0,
+    "@typescript-eslint/no-object-literal-type-assertion": 0,
+    "prettier/prettier": ["error", {
+      "singleQuote": true,
+      "tabWidth": 2,
+      "trailingComma": "es5"
+    }]
   },
   "settings": {
     "react": {
@@ -24,5 +32,8 @@
       "version": "detect"
     }
   },
-  "parser": "@typescript-eslint/parser"
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "warnOnUnsupportedTypeScriptVersion": false
+  }
 }
