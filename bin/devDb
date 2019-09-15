@@ -1,0 +1,4 @@
+#!/bin/sh
+
+export NODE_ENV='test'
+exec npx ts-node src/cli/httpPouchDB.ts

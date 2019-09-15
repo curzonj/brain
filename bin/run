@@ -1,0 +1,13 @@
+#!/usr/bin/env node
+
+require('@oclif/command').run()
+.then(require('@oclif/command/flush'))
+.catch(e => {
+  if (e.oclif && e.oclif.exit === 0) {
+    return
+  }
+
+  console.log("\n!! Error:\n")
+  console.log(e)
+  require('@oclif/errors/handle')(e)
+});

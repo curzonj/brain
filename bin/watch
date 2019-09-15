@@ -1,0 +1,3 @@
+#!/bin/sh
+
+exec reflex -R '^databases' -R node_modules -R lib -r '\.ts$' make $1
