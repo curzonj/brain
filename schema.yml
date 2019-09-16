@@ -55,14 +55,16 @@ definitions:
   couchTopicUpdate:
     type: object
     additionalProperties: false
-    anyOf: *editorNodeAnyOf
+    allOf:
+      - anyOf: *editorNodeAnyOf
+      - anyOf:
+        # The can have both, deleting newer records will, but they at least
+        # have to have one of them. deleting older records won't have patches
+        - required: [patches]
+        - required: [_deleted]
     required:
       - _id
       - id
-      - created_at
-    oneOf:
-      - required: [patches]
-      - required: [_deleted]
     properties:
       <<: *editorNodeProperties
       _deleted:
@@ -98,6 +100,8 @@ definitions:
       # these are present when deleting notes in the queue
       seq: [_deleted]
       topic_id: [_deleted]
+      text: [created_at]
+      _deleted: [_rev]
   objRefStringList:
     type: array
     uniqueItems: true
@@ -130,7 +134,7 @@ definitions:
         value:
           oneOf:
             - type: string
-            - $ref: "#/definitions/props"
+            - type: number
   props:
     type: object
     additionalProperties:

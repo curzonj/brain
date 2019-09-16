@@ -17,6 +17,8 @@ import {
   StringQuad,
   unstringifyQuad,
   stringifyQuad,
+  ValidLiteralType,
+  isValidLiteralType,
 } from '../common/rdf';
 
 const { DataFactory } = N3;
@@ -176,10 +178,7 @@ function changesToQuadOps(changes: models.DocUpdate[]): QuadOp[] {
 
       // This is a new doc
       if (!change._rev) {
-        const newQuads = [] as Quad[];
-        appendNewDocTuples(change, newQuads);
-
-        newQuads.forEach(q => {
+        appendNewDocTuples(change).forEach(q => {
           tuples.push({ op: 'add', q });
         });
       }
@@ -218,26 +217,17 @@ function updateTuplesFromChange(
 ): QuadOp {
   const { op, field, value } = p;
 
-  if (field === 'props') {
-    // TODO implement
-    throw new ComplexError('changing props is not currently supported', {
-      change,
-      p,
-    });
+  if (isValidLiteralType(value)) {
+    return {
+      op,
+      q: quad(refToNode(change.id), prefix.s(field), quadObject(value)),
+    };
   }
 
-  if (typeof value !== 'string') {
-    // TODO implement
-    throw new ComplexError('non-string values are not currently supported', {
-      change,
-      p,
-    });
-  }
-
-  return {
-    op,
-    q: quad(refToNode(change.id), prefix.s(field), quadObject(value)),
-  };
+  throw new ComplexError('unsupported patch value type', {
+    change,
+    p,
+  });
 }
 
 async function bufferStream(readStream: RDF.Stream): Promise<N3.N3Store> {
@@ -389,21 +379,11 @@ export async function pushTopicTuples(stream: QuadPushable) {
   });
 }
 
-function appendNewDocTuples(doc: models.DocUpdate, list: QuadPushable) {
-  const { id, created_at, text } = doc;
-
-  list.push(quad(refToNode(id), prefix.rdf('type'), prefix.s('v1Topic')));
-
-  if (created_at && text) {
-    list.push(
-      quad(
-        refToNode(id),
-        prefix.s('created_at'),
-        quadObject(created_at.toString())
-      )
-    );
-  }
+function appendNewDocTuples(doc: models.DocUpdate): Quad[] {
+  return [quad(refToNode(doc.id), prefix.rdf('type'), prefix.s('v1Topic'))];
 }
+
+type SimpleTuple = [string, string, ValidLiteralType];
 
 function topicDocToTuples<T extends QuadPushable>(
   dirty: models.ExistingDoc | models.DocUpdate,
@@ -412,17 +392,17 @@ function topicDocToTuples<T extends QuadPushable>(
   const { id } = dirty;
   const doc = models.removeStorageAttributes(dirty);
 
-  appendNewDocTuples(dirty, list);
+  appendNewDocTuples(dirty).forEach(q => list.push(q));
 
-  fieldTuples(id, doc).forEach(([s, p, o]: [string, string, string]) => {
+  fieldTuples(id, doc).forEach(([s, p, o]: SimpleTuple) => {
     list.push(quad(refToNode(s), prefix.s(p), quadObject(o)));
   });
 
   return list;
 }
 
-function fieldTuples(id: string, doc: models.ShortDoc) {
-  const rdfList = [] as [string, string, string][];
+function fieldTuples(id: string, doc: models.ShortDoc): SimpleTuple[] {
+  const rdfList = [] as SimpleTuple[];
 
   Object.keys(doc).forEach((k: string) => {
     const o: models.DocValueTypes = doc[k];
@@ -438,8 +418,14 @@ function fieldTuples(id: string, doc: models.ShortDoc) {
           rdfList.push([id, pk, opk]);
         }
       });
-    } else if (o) {
-      rdfList.push([id, k, o.toString()]);
+    } else if (isValidLiteralType(o)) {
+      rdfList.push([id, k, o]);
+    } else {
+      throw new ComplexError('unable to generate tuple for object', {
+        id,
+        k,
+        o,
+      });
     }
   });
 
@@ -450,9 +436,9 @@ function listItemToTuples(
   id: string,
   k: string,
   oNested: models.Link,
-  rdfList: [string, string, string][]
+  rdfList: SimpleTuple[]
 ) {
-  if (typeof oNested === 'string') {
+  if (isValidLiteralType(oNested)) {
     rdfList.push([id, k, oNested]);
   } else if (models.isSearchLink(oNested)) {
     rdfList.push([id, 'search', oNested.search]);
@@ -496,8 +482,8 @@ function refToNode(v: string): N3.NamedNode {
    */
 }
 
-function quadObject(v: string): N3.Quad_Object {
-  if (v.startsWith('/')) {
+function quadObject(v: ValidLiteralType): N3.Quad_Object {
+  if (typeof v === 'string' && v.startsWith('/')) {
     return refToNode(v);
   } else {
     return literal(v);

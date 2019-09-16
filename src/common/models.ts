@@ -1,5 +1,5 @@
 import PouchDB from 'pouchdb';
-import { StringQuad } from './rdf';
+import { StringQuad, ValidLiteralType } from './rdf';
 
 export interface Note {
   id: string;
@@ -10,6 +10,7 @@ export interface Note {
 }
 
 export interface ShortDoc {
+  created_at?: number;
   title?: string;
   join?: string;
   text?: string;
@@ -40,7 +41,7 @@ export interface DumbProps {
 export interface DocChangeEntry {
   op: 'add' | 'remove';
   field: string;
-  value: string;
+  value: ValidLiteralType;
 }
 
 export type LinkList = Link[];
@@ -87,19 +88,21 @@ export type RefList = MaybeLabeledRef[];
 export type MaybeLabeledRef = string | LabeledRef;
 export type EditorStructure = Record<string, EditorDoc>;
 
+export const StorageFields = ['_rev', '_id', '_deleted', 'id', 'patches'];
 export function removeStorageAttributes(
   doc: ExistingDoc | DocUpdate
 ): ShortDoc {
   const clone = { ...doc } as any;
 
-  delete clone._rev;
-  delete clone._id;
-  delete clone._delete;
-  delete clone.id;
-  delete clone.patches;
-  delete clone.created_at;
+  StorageFields.forEach(k => {
+    delete clone[k];
+  });
 
   return clone as ShortDoc;
+}
+
+export function isStorageField(k: string) {
+  return StorageFields.indexOf(k) > -1;
 }
 
 export function isPatches(k: string, v: DocValueTypes): v is DocChangeEntry[] {

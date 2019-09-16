@@ -6,7 +6,7 @@ import * as yaml from 'js-yaml';
 import * as tmp from 'tmp';
 
 import { timingAsync, timingSync } from './timing';
-import { applyChanges, topicToDocID } from './content';
+import { applyChanges, topicToDocID, generatePatches } from './content';
 import { getDB } from './db';
 import { ComplexError } from './errors';
 import * as models from '../common/models';
@@ -171,124 +171,30 @@ async function computeUpdates(
         const { _rev, created_at } = await db
           .get(docId)
           .catch(() => ({ created_at: Date.now() }));
-        const patches = diffToDocChanges(content[k], newContent[k]);
 
-        const docEntries = [] as models.DocUpdate[];
         const newTopicContent = {
           _id: docId,
           _rev,
           created_at,
           id: slashId,
-          patches,
           ...newContent[k],
         } as models.DocUpdate;
 
+        if (!newTopicContent.text) {
+          delete newTopicContent.created_at;
+        }
+
+        const docEntries = [] as models.DocUpdate[];
         unstackNestedDocuments(newTopicContent, docEntries);
+
+        const comparisonDoc = content[k] || ({} as EditorDoc);
+        generatePatches(comparisonDoc, newTopicContent);
+
         docEntries.push(newTopicContent);
 
         return docEntries;
       })
   );
-}
-
-function diffToDocChanges(orig: EditorDoc, doc: EditorDoc) {
-  const list = [] as models.DocChangeEntry[];
-
-  Object.keys(orig).forEach((k: string) => {
-    if (!doc[k]) {
-      const value = orig[k] as models.RegularDocValueTypes;
-      if (models.isPatches(k, value)) {
-        return;
-      } else if (models.isDocArrayField(k, value)) {
-        value.forEach((v: models.Link) => {
-          list.push({
-            op: 'remove',
-            field: k,
-            value: v,
-          } as models.DocChangeEntry);
-        });
-      } else {
-        list.push({
-          op: 'remove',
-          field: k,
-          value,
-        } as models.DocChangeEntry);
-      }
-    }
-  });
-
-  Object.keys(doc).forEach((k: string) => {
-    const origValue = orig[k] as models.RegularDocValueTypes;
-    const newValue = doc[k] as models.RegularDocValueTypes;
-
-    if (
-      Array.isArray(newValue) &&
-      (Array.isArray(origValue) || origValue === undefined)
-    ) {
-      missingItemsToOps(origValue || [], newValue, 'remove', k, list);
-      missingItemsToOps(newValue, origValue || [], 'add', k, list);
-    } else {
-      if (origValue) {
-        list.push({
-          op: 'remove',
-          field: k,
-          value: origValue,
-        } as models.DocChangeEntry);
-      }
-
-      list.push({
-        op: 'add',
-        field: k,
-        value: newValue,
-      } as models.DocChangeEntry);
-    }
-  });
-
-  const invalid = list.filter(e => !e.value || typeof e.value !== 'string');
-  if (invalid.length > 0) {
-    throw new ComplexError('generated invalid patches', {
-      orig,
-      doc,
-      invalid,
-    });
-  }
-
-  return list;
-}
-
-function missingItemsToOps(
-  l1: models.LinkList,
-  l2: models.LinkList,
-  op: 'remove' | 'add',
-  field: string,
-  list: models.DocChangeEntry[]
-) {
-  findMissingItems(l1, l2).forEach((value: models.Link) => {
-    if (typeof value === 'string') {
-      list.push({
-        op,
-        field,
-        value,
-      } as models.DocChangeEntry);
-    } else if (models.isLabeledLink(value)) {
-      list.push({
-        op,
-        field,
-        value: value.link,
-      } as models.DocChangeEntry);
-    } else {
-      // TODO implement
-      throw new ComplexError('unable to generate a patch for object', {
-        op,
-        field,
-        value,
-      });
-    }
-  });
-}
-
-function findMissingItems<T>(l1: T[], l2: T[]): T[] {
-  return l1.filter((i: T) => l2.indexOf(i) === -1);
 }
 
 export async function applyEditorChanges(
@@ -329,6 +235,8 @@ function unstackNestedDocuments(
         Object.assign(newQueueTopic, q);
         unstackNestedDocuments(newQueueTopic, docEntries);
       }
+
+      generatePatches({}, newQueueTopic);
 
       docEntries.push(newQueueTopic);
 
@@ -428,7 +336,11 @@ export async function buildEditorStructure(): Promise<EditorStructure> {
         }
 
         const id = doc.id.slice(1);
-        acc[id] = models.removeStorageAttributes(doc) as EditorDoc;
+        const shortDoc = models.removeStorageAttributes(doc) as EditorDoc;
+        delete shortDoc.created_at;
+
+        acc[id] = shortDoc;
+
         return acc;
       },
       {} as Record<string, EditorDoc>

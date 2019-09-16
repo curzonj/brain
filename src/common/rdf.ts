@@ -93,3 +93,9 @@ export function termId(
 
   return t.value;
 }
+
+// must match the type signature of N3.DataFactory.literal
+export type ValidLiteralType = number | string;
+export function isValidLiteralType(v: any): v is ValidLiteralType {
+  return typeof v === 'string' || typeof v === 'number';
+}

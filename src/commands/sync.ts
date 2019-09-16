@@ -1,7 +1,12 @@
 import { Command } from '@oclif/command';
 import cuid from 'cuid';
 
-import { applyChanges, dumpJSON, topicToDocID } from '../cli/content';
+import {
+  applyChanges,
+  dumpJSON,
+  topicToDocID,
+  generatePatches,
+} from '../cli/content';
 import { getDB, remote } from '../cli/db';
 import * as models from '../common/models';
 import { groupBy } from '../cli/groupBy';
@@ -55,6 +60,24 @@ async function importQueues(): Promise<void> {
   await applyChanges(updates, docs);
 }
 
+async function buildQueueTopicUpdates(
+  topicId: string,
+  list: models.ExistingDoc[]
+): Promise<models.DocUpdate[]> {
+  const db = await getDB();
+  const topic = await db.get<models.ExistingDoc>(topicToDocID(topicId));
+  const newDocs = [topic] as models.DocUpdate[];
+
+  list.forEach(doc => pushQueueTopicUpdates(topic, topicId, doc, newDocs));
+
+  return newDocs;
+}
+
+interface ArrayAcceptsStrings {
+  indexOf(value: string): number;
+  unshift(value: string): void;
+}
+
 function pushQueueTopicUpdates(
   topic: models.ExistingDoc,
   topicId: string,
@@ -92,6 +115,9 @@ function pushQueueTopicUpdates(
 
   listField.unshift(id);
 
+  // We can't use generatePatches here because then we'd
+  // have to deep clone the topic before adding to it's array.
+  // This is just easier for now
   if (!topic.patches) {
     topic.patches = [];
   }
@@ -105,41 +131,14 @@ function pushQueueTopicUpdates(
     return;
   }
 
-  newDocs.push({
+  const newTopic = {
     _id: topicToDocID(id),
     id,
     context: topicId,
     text,
     created_at,
-    patches: [
-      {
-        op: 'add',
-        field: 'text',
-        value: text,
-      },
-      {
-        op: 'add',
-        field: 'context',
-        value: topicId,
-      },
-    ] as models.DocChangeEntry[],
-  } as models.DocUpdate);
-}
+  } as models.DocUpdate;
 
-interface ArrayAcceptsStrings {
-  indexOf(value: string): number;
-  unshift(value: string): void;
-}
-
-async function buildQueueTopicUpdates(
-  topicId: string,
-  list: models.ExistingDoc[]
-): Promise<models.DocUpdate[]> {
-  const db = await getDB();
-  const topic = await db.get<models.ExistingDoc>(topicToDocID(topicId));
-  const newDocs = [topic] as models.DocUpdate[];
-
-  list.forEach(doc => pushQueueTopicUpdates(topic, topicId, doc, newDocs));
-
-  return newDocs;
+  generatePatches({}, newTopic);
+  newDocs.push(newTopic);
 }
