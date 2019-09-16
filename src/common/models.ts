@@ -1,9 +1,21 @@
 import PouchDB from 'pouchdb';
+import { StringQuad } from './rdf';
+
+export interface Note {
+  id: string;
+  text: string;
+  created_at: number;
+  seq: number | string;
+  topic_id: string;
+}
 
 export interface ShortDoc {
   text?: string;
+  src?: Link;
+  context?: string;
   topic_id?: string;
   queue?: string[];
+  list?: string[];
   links?: LinkList;
   props?: DumbProps;
   patches?: DocChangeEntry[];
@@ -44,12 +56,16 @@ export type RegularDocValueTypes =
   | string
   | number
   | undefined
+  | Link
   | LinkList
   | DumbProps;
 export type DocValueTypes = RegularDocValueTypes | DocChangeEntry[];
 
 export type ExistingDoc = PouchDB.Core.ExistingDocument<Doc>;
 export type DocUpdate = PouchDB.Core.PutDocument<Doc> & PouchDB.Core.IdMeta;
+export type RdfDoc = StringQuad;
+export type CouchDocTypes = Doc | RdfDoc | Note;
+export type NewNote = PouchDB.Core.PutDocument<Note>;
 
 export interface EditorDoc {
   text?: string;

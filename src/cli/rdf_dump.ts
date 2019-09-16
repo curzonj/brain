@@ -4,12 +4,20 @@ import * as fs from 'fs';
 import * as N3 from 'n3';
 import { isomorphic } from 'rdf-isomorphic';
 import * as RDF from 'rdf-js';
-import * as RdfString from 'rdf-string';
 import { Readable } from 'stream';
 import { getDB } from './db';
 import { ComplexError } from './errors';
-import * as models from './models';
-import { Quad, prefix, prefixes } from './rdf';
+import * as models from '../common/models';
+import {
+  prefix,
+  prefixes,
+  GraphTrie,
+  Quad,
+  isStringQuad,
+  StringQuad,
+  unstringifyQuad,
+  stringifyQuad,
+} from '../common/rdf';
 
 const { DataFactory } = N3;
 const { namedNode, literal, quad } = DataFactory;
@@ -116,10 +124,6 @@ function diffAsQuadOps(orig: Quad[], goal: Quad[]): QuadOp[] {
   return [...remove, ...add];
 }
 
-interface GraphTrie {
-  [key: string]: StringQuad | GraphTrie;
-}
-
 export function graphTrie(quads: (Quad | StringQuad)[]): GraphTrie {
   const strings = quads.map(stringifyQuad);
   const trie = {} as GraphTrie;
@@ -129,10 +133,12 @@ export function graphTrie(quads: (Quad | StringQuad)[]): GraphTrie {
     upper: GraphTrie,
     field: 'subject' | 'predicate' | 'object' | 'graph'
   ): GraphTrie {
-    if (!upper[sq[field]]) {
-      upper[sq[field]] = {} as GraphTrie;
+    const k = sq[field] || '';
+
+    if (!upper[k]) {
+      upper[k] = {} as GraphTrie;
     }
-    return upper[sq[field]] as GraphTrie;
+    return upper[k] as GraphTrie;
   }
 
   strings.forEach(sq => {
@@ -249,39 +255,6 @@ function quadDocID(s: StringQuad): string {
   return `$/rdfHashes/${hashed}`;
 }
 
-export function isObjectQuad(s: Quad | StringQuad): s is Quad {
-  return !isStringQuad(s);
-}
-
-function isStringQuad(s: GraphTrie | Quad | StringQuad): s is StringQuad {
-  return (
-    typeof s.subject === 'string' &&
-    typeof s.predicate === 'string' &&
-    typeof s.object === 'string' &&
-    typeof s.graph === 'string'
-  );
-}
-
-interface StringQuad {
-  subject: string;
-  predicate: string;
-  object: string;
-  graph: string;
-  [key: string]: string;
-}
-export function stringifyQuad(q: Quad | StringQuad): StringQuad {
-  if (isStringQuad(q)) {
-    return q;
-  } else {
-    return {
-      subject: RdfString.termToString(q.subject),
-      predicate: RdfString.termToString(q.predicate),
-      object: RdfString.termToString(q.object),
-      graph: RdfString.termToString(q.graph),
-    };
-  }
-}
-
 export async function deleteAllTuples() {
   const db = await getDB();
   const { rows } = await db.allDocs<models.ExistingDoc>({
@@ -315,11 +288,11 @@ async function deleteQuad(q: Quad | StringQuad) {
 
 async function uploadQuad(q: Quad | StringQuad) {
   const db = await getDB();
-  q = stringifyQuad(q);
+  const sq = stringifyQuad(q);
   await db
     .put({
-      _id: quadDocID(q),
-      ...q,
+      _id: quadDocID(sq),
+      ...sq,
     })
     .catch(e => {
       if (e.status !== 409) {
@@ -392,15 +365,6 @@ export async function pushCouchTuples(stream: QuadPushable) {
       stream.push(unstringifyQuad(doc));
     }
   });
-}
-
-export function unstringifyQuad(json: StringQuad): Quad {
-  return quad(
-    RdfString.stringToTerm(json.subject) as N3.Quad_Subject,
-    RdfString.stringToTerm(json.predicate) as N3.Quad_Predicate,
-    RdfString.stringToTerm(json.object) as N3.Quad_Object,
-    RdfString.stringToTerm(json.graph) as N3.Quad_Graph
-  );
 }
 
 export async function pushTopicTuples(stream: QuadPushable) {

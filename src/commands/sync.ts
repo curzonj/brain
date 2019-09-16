@@ -3,7 +3,7 @@ import cuid from 'cuid';
 
 import { applyChanges, dumpJSON, topicToDocID } from '../cli/content';
 import { getDB, remote } from '../cli/db';
-import * as models from '../cli/models';
+import * as models from '../common/models';
 import { groupBy } from '../cli/groupBy';
 
 class SyncCommand extends Command {

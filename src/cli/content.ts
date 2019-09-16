@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import { getDB } from './db';
 import { ComplexError } from './errors';
-import * as models from './models';
+import * as models from '../common/models';
 import { dumpDatabaseToRDF, mirrorChangesToRDF } from './rdf_dump';
 import { schemaSelector } from './schema';
 

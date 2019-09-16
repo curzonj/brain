@@ -9,7 +9,7 @@ import { timingAsync, timingSync } from './timing';
 import { applyChanges, topicToDocID } from './content';
 import { getDB } from './db';
 import { ComplexError } from './errors';
-import * as models from './models';
+import * as models from '../common/models';
 import {
   EditorDoc,
   EditorStructure,
@@ -17,7 +17,7 @@ import {
   LabeledRef,
   MaybeLabeledRef,
   RefList,
-} from './models';
+} from '../common/models';
 import { schemaSelector } from './schema';
 
 const editorSchema = schemaSelector('editor');

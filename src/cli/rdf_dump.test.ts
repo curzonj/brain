@@ -2,6 +2,7 @@ import * as N3 from 'n3';
 import { getDB } from './db';
 import { printTimings } from './timing';
 import * as rdfDump from './rdf_dump';
+import { stringifyQuad } from '../common/rdf';
 
 const { DataFactory } = N3;
 const { namedNode, literal, quad } = DataFactory;
@@ -22,7 +23,7 @@ describe('rdf_dump.ts', () => {
         quad(namedNode('s3'), namedNode('p3'), literal('other')),
       ] as N3.Quad[];
 
-      const strings = list.map(rdfDump.stringifyQuad);
+      const strings = list.map(stringifyQuad);
 
       const t = rdfDump.graphTrie(strings);
 

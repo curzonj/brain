@@ -1,7 +1,14 @@
 import * as N3 from 'n3';
 import { finalizeEditorStructure } from './editor';
-import * as models from './models';
-import { isNamedNode, prefix, prefixes, termId, rdfMatches, Quad } from './rdf';
+import * as models from '../common/models';
+import {
+  isNamedNode,
+  prefix,
+  prefixes,
+  termId,
+  rdfMatches,
+  Quad,
+} from '../common/rdf';
 import { getRDFStore } from './rdf_dump';
 import { DecodedSchema, getFieldType, getSchemaContents } from './schema';
 import { timingAsync, timingSync } from './timing';

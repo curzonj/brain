@@ -8,7 +8,7 @@ import {
   editFile,
   sortedYamlDump,
 } from '../cli/editor';
-import { EditorStructure } from '../cli/models';
+import { EditorStructure } from '../common/models';
 import { schemaSelector } from '../cli/schema';
 
 const editorSchema = schemaSelector('editor');
