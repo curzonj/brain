@@ -23,8 +23,6 @@ definitions:
         format: uri
       context:
         $ref: "#/definitions/slashRefString"
-      type:
-        $ref: "#/definitions/slashRefString"
       join:
         $ref: "#/definitions/slashRefString"
       aka:

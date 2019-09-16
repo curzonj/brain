@@ -13,7 +13,12 @@ const config = JSON.parse(
 export const remote = new PouchDB<any>(config.url, { auth: config.auth });
 export const InMemPouchDB = PouchDB.defaults({ adapter: 'memory' });
 
-export function getPouchDBClass() {
+type PouchDBConstructor = new <Content extends {} = {}>(
+  name?: string,
+  options?: PouchDB.Configuration.DatabaseConfiguration
+) => PouchDB.Database<Content>;
+
+export function getPouchDBClass(): PouchDBConstructor {
   if (process.env.NODE_ENV === 'test') {
     return InMemPouchDB;
   } else {

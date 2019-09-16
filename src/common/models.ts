@@ -10,8 +10,11 @@ export interface Note {
 }
 
 export interface ShortDoc {
+  title?: string;
+  join?: string;
   text?: string;
   src?: Link;
+  link?: Link;
   context?: string;
   topic_id?: string;
   queue?: string[];

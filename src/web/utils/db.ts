@@ -49,7 +49,7 @@ export async function addNote(topicId: string, text: string) {
     seq: lastSeq,
     created_at: Date.now(),
     id: `/${id}`,
-    text,
+    text: text.trim(),
   } as models.NewNote;
 
   await notesLevelDB.put(id, payload);
@@ -63,22 +63,14 @@ export async function addNote(topicId: string, text: string) {
     })
   );
 }
-export function configure(value?: string) {
-  if (!value || value === '') {
-    return false;
-  }
-
-  try {
-    JSON.parse(value);
-  } catch (err) {
-    return false;
-  }
-
+export async function configure(value: string) {
+  JSON.parse(value);
   localStorage.couchdb_target = value;
 
-  return true;
+  await sync();
 }
-export async function isConfigured() {
+
+async function isConfigured(): Promise<boolean> {
   if (!navigator.onLine) {
     return true;
   }
@@ -159,7 +151,19 @@ export async function uploadNotes() {
   );
 }
 
-export async function sync() {
+export async function initialize(): Promise<boolean> {
+  const ready = await isConfigured();
+  if (!ready) {
+    return false;
+  }
+
+  await sync();
+  await uploadNotes();
+
+  return true;
+}
+
+async function sync() {
   if (!navigator.onLine) {
     return;
   }
@@ -175,6 +179,8 @@ export async function sync() {
   } else {
     await updateLevelDB(remoteDb, lastSeq);
   }
+
+  // TODO notify listeners when changes are done importing
 }
 
 async function importTuplesToQuadstore(remoteDb: PouchDB.Database) {

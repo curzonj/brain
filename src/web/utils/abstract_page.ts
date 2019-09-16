@@ -1,5 +1,6 @@
 import * as db from './db';
 import * as models from '../../common/models';
+import { reportError } from './errors';
 
 const NestedSectionListFieldNames = [
   ['next', 'Next'],
@@ -18,21 +19,23 @@ const LastSectionListFieldNames = [
 
 const TodoListFieldNames = [['next', 'Next'], ['later', 'Later']];
 
-interface AbstractPage {
+export interface AbstractPage {
   title: string;
-  breadcrumbs: undefined | any[];
+  breadcrumbs?: any[];
   sections: Section[];
 }
 
-interface Section {
+export interface Section {
   title?: string;
   text?: any;
   list?: any[];
   divs?: any[];
 }
 
-export async function buildAbstractPage(topicId: string) {
-  const doc = await db.getTopic(topicId).catch(console.log);
+export async function buildAbstractPage(
+  topicId: string
+): Promise<AbstractPage> {
+  const doc = await db.getTopic(topicId).catch(reportError);
   if (!doc) {
     return {
       title: topicId,
@@ -209,9 +212,22 @@ async function maybeResolveSrc(src: undefined | models.Link) {
   }
 }
 
-function deriveTitle(n: models.Doc) {
+function deriveTitle(n: models.Doc): string {
   if (!n) return 'Missing Page';
-  return n.title || n.type || n.join || n.link || 'Note';
+
+  let title = n.title || n.join;
+
+  if (!title && n.link) {
+    if (typeof n.link === 'string') {
+      title = n.link;
+    } else if (models.isLabeledLink(n.link)) {
+      title = n.link.link;
+    } else if (models.isSearchLink(n.link)) {
+      title = n.link.search;
+    }
+  }
+
+  return title || 'Note';
 }
 
 function listIsShallow(list: undefined | any[]): boolean {
