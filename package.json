@@ -29,7 +29,7 @@
   },
   "license": "ISC",
   "author": "curzonj@gmail.com",
-  "homepage": "https://github.com/curzonj/brain#readme",
+  "homepage": "https://curzon.github.io/brain-v2-test",
   "bugs": {
     "url": "https://github.com/curzonj/brain/issues"
   },
@@ -85,7 +85,9 @@
     "postpack": "rm -f oclif.manifest.json",
     "prepack": "rm -rf lib && tsc -b && oclif-dev manifest && oclif-dev readme",
     "version": "oclif-dev readme && git add README.md",
-    "lint": "eslint './src/**/*.{ts,tsx}'"
+    "lint": "eslint './src/**/*.{ts,tsx}'",
+    "predeploy": "npm run build",
+    "deploy": "cp build/index.html build/404.html && echo 'Watch for gpg now...' && gh-pages -d build"
   },
   "browserslist": {
     "production": [

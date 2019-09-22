@@ -1,23 +1,17 @@
 import React, { Component } from 'react';
-import { Router, Route, Switch, Redirect } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Route,
+  Switch,
+  Redirect,
+} from 'react-router-dom';
 import { withRouter, RouteComponentProps } from 'react-router';
-import { createBrowserHistory } from 'history';
-
 import './app.css';
 import { TopicPage } from './topic_page';
 import { NotePage } from './note_page';
 import { LoginPage } from './login_page';
 import { initialize as dbInitialize } from '../utils/db';
 import { reportError } from '../utils/errors';
-
-const history = createBrowserHistory();
-
-reportError(async () => {
-  const ok = await dbInitialize();
-  if (!ok) {
-    history.push('/login');
-  }
-});
 
 class ScrollToTopInner extends Component<RouteComponentProps> {
   componentDidUpdate(prevProps: RouteComponentProps) {
@@ -30,12 +24,24 @@ class ScrollToTopInner extends Component<RouteComponentProps> {
     return this.props.children;
   }
 }
-
 const ScrollToTop = withRouter(ScrollToTopInner);
+
+const HistoryExporter = withRouter((props: RouteComponentProps) => {
+  reportError(async () => {
+    const ok = await dbInitialize();
+    if (!ok) {
+      props.history.push('/login');
+    }
+  });
+
+  return <></>;
+});
 
 export const App: React.FC = () => {
   return (
-    <Router history={history}>
+    <Router basename={process.env.PUBLIC_URL}>
+      <HistoryExporter />
+
       <ScrollToTop>
         <Switch>
           <Redirect from="/" to="/index" exact />
