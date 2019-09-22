@@ -80,7 +80,7 @@ async function isConfigured(): Promise<boolean> {
     return false;
   }
 
-  const remoteDb = getDb();
+  const remoteDb = getRemoteDb();
 
   try {
     // TODO once I have a better idea of what errors from
@@ -96,8 +96,7 @@ async function isConfigured(): Promise<boolean> {
   return true;
 }
 
-export async function uploadNotes() {
-  const remoteDb = getDb();
+export async function uploadNotes(sourceDb: PouchDB.Database) {
   const notesLevelDB = dbNamespace('notes');
   const list = await getAll<models.Note>(notesLevelDB);
 
@@ -109,7 +108,7 @@ export async function uploadNotes() {
         ...note,
       } as models.NewNote;
 
-      const existing = await remoteDb
+      const existing = await sourceDb
         .get(docId)
         .catch(async (e: PouchDB.Core.Error) => {
           if (e.status !== 404) {
@@ -145,7 +144,7 @@ export async function uploadNotes() {
           existing,
         });
       } else {
-        await remoteDb.put(doc);
+        await sourceDb.put(doc);
       }
     })
   );
@@ -158,7 +157,6 @@ export async function initialize(): Promise<boolean> {
   }
 
   await sync();
-  await uploadNotes();
 
   return true;
 }
@@ -168,23 +166,27 @@ async function sync() {
     return;
   }
 
-  const remoteDb = getDb();
-  const lastSeq = await getLastSeq();
+  const remoteDb = getRemoteDb();
+  const localDb = getLocalDb();
 
-  await exportAndDestroyLocalPouchDB(remoteDb);
+  localDb.sync(remoteDb);
 
-  if (!lastSeq) {
-    await importTuplesToQuadstore(remoteDb);
-    await importTopicsToLevelDB(remoteDb);
-  } else {
-    await updateLevelDB(remoteDb, lastSeq);
-  }
-
-  // TODO notify listeners when changes are done importing
+  await syncToLevelDB(localDb);
+  await uploadNotes(localDb);
 }
 
-async function importTuplesToQuadstore(remoteDb: PouchDB.Database) {
-  const { rows } = await remoteDb.allDocs<models.RdfDoc>({
+async function syncToLevelDB(sourceDb: PouchDB.Database) {
+  const lastSeq = await getLastSeq();
+  if (!lastSeq) {
+    await importTuplesToQuadstore(sourceDb);
+    await importTopicsToLevelDB(sourceDb);
+  } else {
+    await updateLevelDB(sourceDb, lastSeq);
+  }
+}
+
+async function importTuplesToQuadstore(sourceDb: PouchDB.Database) {
+  const { rows } = await sourceDb.allDocs<models.RdfDoc>({
     include_docs: true,
     startkey: `$/rdfHashes/`,
     endkey: `$/rdfHashes/\uFFF0`,
@@ -197,8 +199,8 @@ async function importTuplesToQuadstore(remoteDb: PouchDB.Database) {
   await rdfStore.put(quads);
 }
 
-async function importTopicsToLevelDB(remoteDb: PouchDB.Database) {
-  const { rows, update_seq: resultSequence } = await remoteDb.allDocs<
+async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
+  const { rows, update_seq: resultSequence } = await sourceDb.allDocs<
     models.Doc
   >({
     include_docs: true,
@@ -224,10 +226,10 @@ async function importTopicsToLevelDB(remoteDb: PouchDB.Database) {
 }
 
 async function updateLevelDB(
-  remoteDb: PouchDB.Database,
+  sourceDb: PouchDB.Database,
   lastSeq: string | number
 ): Promise<void> {
-  const { last_seq: resultLastSeq, results } = await remoteDb.changes<
+  const { last_seq: resultLastSeq, results } = await sourceDb.changes<
     models.CouchDocTypes
   >({
     include_docs: true,
@@ -265,17 +267,28 @@ async function updateLevelDB(
 
   await base().batch(ops);
 
-  return updateLevelDB(remoteDb, resultLastSeq);
+  return updateLevelDB(sourceDb, resultLastSeq);
 }
 
 let remoteDbMemoized: PouchDB.Database;
-function getDb() {
+function getRemoteDb() {
   if (!remoteDbMemoized) {
     const config = getDbTarget();
     remoteDbMemoized = new PouchDB(config.url, config);
   }
 
   return remoteDbMemoized;
+}
+
+let localDbMemoized: PouchDB.Database;
+function getLocalDb() {
+  if (!localDbMemoized) {
+    localDbMemoized = new PouchDB('wiki', {
+      auto_compaction: true,
+    });
+  }
+
+  return localDbMemoized;
 }
 
 function getDbTarget() {
@@ -302,23 +315,15 @@ async function getLastSeq() {
 }
 
 async function attemptNoteUpload(note: models.Note) {
+  const localDb = getLocalDb();
+  await localDb.put(note);
+
   if (!navigator.onLine) {
     return;
   }
 
-  const remoteDb = getDb();
-  await remoteDb.put(note);
-}
-
-async function exportAndDestroyLocalPouchDB(remoteDb: PouchDB.Database) {
-  const pouchdb = new PouchDB('wiki', {
-    auto_compaction: true,
-  });
-  const { doc_count: docCount } = await pouchdb.info();
-  if (docCount > 0) {
-    await pouchdb.replicate.to(remoteDb);
-  }
-  await pouchdb.destroy();
+  const remoteDb = getRemoteDb();
+  localDb.sync(remoteDb);
 }
 
 export function hash(s: string) {
