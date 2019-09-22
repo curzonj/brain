@@ -3,6 +3,7 @@ import md5 from 'blueimp-md5';
 import cuid from 'cuid';
 import { AbstractIteratorOptions, AbstractBatch } from 'abstract-leveldown';
 import { LevelUp } from 'levelup';
+import * as asyncLib from 'async';
 
 import { reportError } from './errors';
 import { dbNamespace, nested, base, rdfStore } from './leveldb';
@@ -54,14 +55,10 @@ export async function addNote(topicId: string, text: string) {
 
   await notesLevelDB.put(id, payload);
 
-  // async but we won't wait for it
-  attemptNoteUpload(payload).catch(e =>
-    reportError(e, {
-      file: 'db',
-      fn: 'attemptNoteUpload',
-      at: 'catch',
-    })
-  );
+  reportError(async () => attemptNoteUpload(payload), {
+    file: 'db',
+    fn: 'attemptNoteUpload',
+  });
 }
 export async function configure(value: string) {
   JSON.parse(value);
@@ -82,16 +79,12 @@ async function isConfigured(): Promise<boolean> {
 
   const remoteDb = getRemoteDb();
 
-  try {
-    // TODO once I have a better idea of what errors from
-    // this can look like I'll delete the config and return
-    // false sometimes
-    await remoteDb.info();
-  } catch (e) {
-    reportError(e, {
-      at: 'db.isConfigured',
-    });
-  }
+  // TODO once I have a better idea of what errors from
+  // this can look like I'll delete the config and return
+  // false sometimes
+  reportError(async () => remoteDb.info(), {
+    at: 'db.isConfigured',
+  });
 
   return true;
 }
@@ -100,54 +93,57 @@ export async function uploadNotes(sourceDb: PouchDB.Database) {
   const notesLevelDB = dbNamespace('notes');
   const list = await getAll<models.Note>(notesLevelDB);
 
-  await Promise.all(
-    list.map(async note => {
-      const docId = `$/queue/${note.topic_id}/${note.id}`;
-      const doc = {
-        _id: docId,
-        ...note,
-      } as models.NewNote;
+  await asyncLib.mapSeries(list, async note => {
+    const docId = `$/queue/${note.topic_id}/${note.id}`;
+    const doc = {
+      _id: docId,
+      ...note,
+    } as models.NewNote;
 
-      const existing = await sourceDb
-        .get(docId)
-        .catch(async (e: PouchDB.Core.Error) => {
-          if (e.status !== 404) {
-            reportError(e, {
-              file: 'db',
-              fn: 'uploadNotes',
-              at: 'failure',
-              noteId: docId,
-            });
+    const existing = await sourceDb
+      .get(docId)
+      .catch(async (e: PouchDB.Core.Error) => {
+        if (e.status !== 404) {
+          reportError(e, {
+            file: 'db',
+            fn: 'uploadNotes',
+            noteId: docId,
+          });
 
-            return e;
-          }
+          return e;
+        }
 
-          if (e.reason === 'deleted') {
-            // the translation between these IDs and couchdb is a
-            // little broken so it's easier to just delete them from levelDB
-            // when they are deleted from couchdb
-            const topicNotes = nested(dbNamespace('notes'), doc.topic_id);
-            await topicNotes.del(doc.id);
+        if (e.reason === 'deleted') {
+          // the translation between these IDs and couchdb is a
+          // little broken so it's easier to just delete them from levelDB
+          // when they are deleted from couchdb
+          const topicNotes = nested(dbNamespace('notes'), doc.topic_id);
+          await topicNotes.del(doc.id);
 
-            return e;
-          }
+          return e;
+        }
 
-          return;
-        });
+        return;
+      });
 
-      if (existing) {
-        console.log({
+    if (existing) {
+      console.log({
+        file: 'db',
+        fn: 'uploadNotes',
+        at: 'skip',
+        doc,
+        existing,
+      });
+    } else {
+      await sourceDb.put(doc).catch(e =>
+        reportError(e, {
           file: 'db',
           fn: 'uploadNotes',
-          at: 'skip',
           doc,
-          existing,
-        });
-      } else {
-        await sourceDb.put(doc);
-      }
-    })
-  );
+        })
+      );
+    }
+  });
 }
 
 export async function initialize(): Promise<boolean> {
@@ -156,7 +152,8 @@ export async function initialize(): Promise<boolean> {
     return false;
   }
 
-  await sync();
+  // Don't wait for this
+  reportError(sync);
 
   return true;
 }
@@ -167,12 +164,9 @@ async function sync() {
   }
 
   const remoteDb = getRemoteDb();
-  const localDb = getLocalDb();
 
-  localDb.sync(remoteDb);
-
-  await syncToLevelDB(localDb);
-  await uploadNotes(localDb);
+  await syncToLevelDB(remoteDb);
+  await uploadNotes(remoteDb);
 }
 
 async function syncToLevelDB(sourceDb: PouchDB.Database) {
@@ -280,17 +274,6 @@ function getRemoteDb() {
   return remoteDbMemoized;
 }
 
-let localDbMemoized: PouchDB.Database;
-function getLocalDb() {
-  if (!localDbMemoized) {
-    localDbMemoized = new PouchDB('wiki', {
-      auto_compaction: true,
-    });
-  }
-
-  return localDbMemoized;
-}
-
 function getDbTarget() {
   if (localStorage.couchdb_target) {
     try {
@@ -310,20 +293,21 @@ function getDbTarget() {
 }
 
 async function getLastSeq() {
+  if (process.env.NODE_ENV === 'development') {
+    return {};
+  }
+
   const configsLevelDB = dbNamespace('configs');
   return configsLevelDB.get('lastSeq').catch((err: Error) => {});
 }
 
 async function attemptNoteUpload(note: models.Note) {
-  const localDb = getLocalDb();
-  await localDb.put(note);
-
   if (!navigator.onLine) {
     return;
   }
 
   const remoteDb = getRemoteDb();
-  localDb.sync(remoteDb);
+  await remoteDb.put(note);
 }
 
 export function hash(s: string) {

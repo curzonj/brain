@@ -1,80 +1,48 @@
-import React, { Component } from 'react';
+import React from 'react';
 import { RouteComponentProps } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Menu } from './menu';
 import './topic_page.css';
-import {
-  buildAbstractPage,
-  AbstractPage,
-  Section,
-} from '../utils/abstract_page';
-import { reportError } from '../utils/errors';
+import { useAbstractPage } from '../utils/abstract_page_react';
+import { AbstractPage, Section } from '../utils/abstract_page';
 
-type TopicPageProps = RouteComponentProps<{
-  topicId: string;
-}>;
+export function TopicHeader(props: { topicId: string; page?: AbstractPage }) {
+  const { page, topicId } = props;
 
-interface TopicPageState {
-  page?: AbstractPage;
-  loadedFor?: string;
+  return (
+    <div className="header">
+      {page && <Breadcrumbs breadcrumbs={page.breadcrumbs} />}
+      <h1 className="title">{page ? page.title : topicId}</h1>
+    </div>
+  );
 }
 
-export class TopicPage extends Component<TopicPageProps, TopicPageState> {
-  constructor(props: TopicPageProps) {
-    super(props);
-    this.state = {};
-  }
+export function TopicPage(props: RouteComponentProps<{ topicId: string }>) {
+  const { topicId } = props.match.params;
+  const page = useAbstractPage(topicId);
 
-  componentWillUnmount() {}
+  return (
+    <div className="topicPage">
+      <Menu>
+        <li>
+          <Link to="/index">index</Link>
+        </li>
+        <li>
+          <Link to={'/add_note/' + topicId}>add note</Link>
+        </li>
+      </Menu>
 
-  fetchContent(topicId: string) {
-    reportError(async () => {
-      // TODO find a way to cancel this from componentWillUnmount
-      const page = await buildAbstractPage(`/${topicId}`);
-      this.setState({
-        loadedFor: topicId,
-        page,
-      });
-    });
-  }
+      <TopicHeader topicId={topicId} page={page} />
 
-  render() {
-    const { topicId } = this.props.match.params;
-
-    if (this.state.loadedFor !== topicId) {
-      this.fetchContent(topicId);
-    }
-
-    return (
-      <div className="topicPage">
-        <Menu>
-          <li>
-            <Link to="/index">index</Link>
-          </li>
-          <li>
-            <Link to={'/add_note/' + topicId}>add note</Link>
-          </li>
-        </Menu>
-
-        <div className="header">
-          {this.state.page && (
-            <Breadcrumbs breadcrumbs={this.state.page.breadcrumbs} />
-          )}
-          <h1 className="title">
-            {this.state.page ? this.state.page.title : topicId}
-          </h1>
-        </div>
-
-        {this.state.page ? (
-          renderSections(this.state.page.sections)
-        ) : (
-          <section>
-            <p>Loading...</p>
-          </section>
-        )}
-      </div>
-    );
-  }
+      {page ? (
+        renderSections(page.sections)
+      ) : (
+        <section>
+          <p>Loading...</p>
+        </section>
+      )}
+    </div>
+  );
 }
 
 function renderSections(sections: Section[]) {

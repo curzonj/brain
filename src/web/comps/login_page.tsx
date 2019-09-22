@@ -3,7 +3,6 @@ import { RouteComponentProps } from 'react-router';
 import { Menu } from './menu';
 import { reportError } from '../utils/errors';
 import * as db from '../utils/db';
-import './login_page.css';
 
 export class LoginPage extends Component<
   RouteComponentProps,
@@ -35,7 +34,7 @@ export class LoginPage extends Component<
 
   render() {
     return (
-      <div className="loginPage">
+      <>
         <Menu>
           <li>
             <button
@@ -62,7 +61,7 @@ export class LoginPage extends Component<
             value={this.state.value}
           ></textarea>
         </form>
-      </div>
+      </>
     );
   }
 }
