@@ -2,20 +2,18 @@ import PouchDB from 'pouchdb';
 import md5 from 'blueimp-md5';
 import cuid from 'cuid';
 import { AbstractIteratorOptions, AbstractBatch } from 'abstract-leveldown';
-import { LevelUp } from 'levelup';
 import * as asyncLib from 'async';
 
 import { reportError } from './errors';
-import { dbNamespace, nested, base, rdfStore } from './leveldb';
+import { dbNamespace, nested, base, rdfStore, TypedLevelUp } from './leveldb';
 import * as N3 from 'n3';
 import * as models from '../../common/models';
-import { unstringifyQuad } from '../../common/rdf';
 
 const { DataFactory } = N3;
 const { namedNode } = DataFactory;
 
 export function getTopic(topicKey: string): Promise<models.Doc> {
-  return dbNamespace('topics').get(hash(topicKey));
+  return dbNamespace<models.Doc>('topics').get(hash(topicKey));
 }
 
 export async function pokeBear(topicId: string) {
@@ -27,8 +25,8 @@ export async function pokeBear(topicId: string) {
   console.log(tuples);
 }
 export async function getNotes(topicId: string): Promise<string[]> {
-  const notesLevelDB = nested(dbNamespace('notes'), topicId);
-  const list = await getAll<models.Note>(notesLevelDB);
+  const notesLevelDB = nested<models.NewNote>(dbNamespace('notes'), topicId);
+  const list = await getAll(notesLevelDB);
 
   // merely by returning the entire list here, unsaved notes
   // would gain the more link, but if you were to add a note
@@ -37,12 +35,15 @@ export async function getNotes(topicId: string): Promise<string[]> {
 }
 
 export async function addNote(topicId: string, text: string) {
+  if (!topicId.startsWith('/')) {
+    topicId = `/${topicId}`;
+  }
   if (topicId === '/index') {
     topicId = '/inbox';
   }
 
   const lastSeq = await getLastSeq();
-  const notesLevelDB = nested(dbNamespace('notes'), topicId);
+  const notesLevelDB = nested<models.NewNote>(dbNamespace('notes'), topicId);
   const id = cuid();
   const payload = {
     _id: `$/queue/${topicId}/${id}`,
@@ -90,8 +91,8 @@ async function isConfigured(): Promise<boolean> {
 }
 
 export async function uploadNotes(sourceDb: PouchDB.Database) {
-  const notesLevelDB = dbNamespace('notes');
-  const list = await getAll<models.NewNote>(notesLevelDB);
+  const notesLevelDB = dbNamespace<models.NewNote>('notes');
+  const list = await getAll(notesLevelDB);
 
   await asyncLib.mapSeries(list, async doc => {
     const docId = doc._id;
@@ -176,25 +177,10 @@ async function sync() {
 async function syncToLevelDB(sourceDb: PouchDB.Database) {
   const lastSeq = await getLastSeq();
   if (!lastSeq) {
-    await importTuplesToQuadstore(sourceDb);
     await importTopicsToLevelDB(sourceDb);
   } else {
     await updateLevelDB(sourceDb, lastSeq);
   }
-}
-
-async function importTuplesToQuadstore(sourceDb: PouchDB.Database) {
-  const { rows } = await sourceDb.allDocs<models.RdfDoc>({
-    include_docs: true,
-    startkey: `$/rdfHashes/`,
-    endkey: `$/rdfHashes/\uFFF0`,
-  });
-  const quads = rows
-    .map(row => row.doc)
-    .filter(doc => doc !== undefined)
-    .map(doc => unstringifyQuad(doc as models.RdfDoc));
-
-  await rdfStore.put(quads);
 }
 
 async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
@@ -296,13 +282,9 @@ function getDbTarget() {
   return null;
 }
 
-async function getLastSeq() {
-  if (process.env.NODE_ENV === 'development') {
-    return {};
-  }
-
-  const configsLevelDB = dbNamespace('configs');
-  return configsLevelDB.get('lastSeq').catch((err: Error) => {});
+async function getLastSeq(): Promise<number | string | undefined> {
+  const configsLevelDB = dbNamespace<number | string>('configs');
+  return configsLevelDB.get('lastSeq').catch((err: Error) => undefined);
 }
 
 async function attemptNoteUpload(note: models.Note) {
@@ -327,7 +309,7 @@ function reverseSlashes(v: string) {
 }
 
 function getAll<D>(
-  db: LevelUp,
+  db: TypedLevelUp<D>,
   options?: AbstractIteratorOptions
 ): Promise<D[]> {
   const list = [] as D[];

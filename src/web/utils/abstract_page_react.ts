@@ -12,7 +12,7 @@ export function useAbstractPage(topicId: string): AbstractPage | undefined {
 
   if (pageHolder.loaded !== topicId) {
     reportError(async () => {
-      const page = await buildAbstractPage(`/${topicId}`);
+      const page = await buildAbstractPage(topicId);
       setState({
         page,
         loaded: topicId,

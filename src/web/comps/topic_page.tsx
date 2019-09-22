@@ -28,7 +28,7 @@ export function TopicPage(props: RouteComponentProps<{ topicId: string }>) {
           <Link to="/index">index</Link>
         </li>
         <li>
-          <Link to={'/add_note/' + topicId}>add note</Link>
+          <Link to={`/add_note/${topicId}`}>add note</Link>
         </li>
       </Menu>
 

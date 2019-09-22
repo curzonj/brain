@@ -35,6 +35,10 @@ export interface Section {
 export async function buildAbstractPage(
   topicId: string
 ): Promise<AbstractPage> {
+  if (!topicId.startsWith('/')) {
+    topicId = `/${topicId}`;
+  }
+
   const doc = await db.getTopic(topicId).catch(reportError);
   if (!doc) {
     return {
@@ -133,6 +137,7 @@ async function listFieldNameDivs(names: string[][], doc: models.Doc) {
   return p.flat();
 }
 
+// TODO this isn't working
 async function appendQueueToPage(doc: models.Doc) {
   const notes = await db.getNotes(doc.id);
   if (notes.length === 0) {

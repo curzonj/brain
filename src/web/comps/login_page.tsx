@@ -1,67 +1,40 @@
-import React, { Component } from 'react';
-import { RouteComponentProps } from 'react-router';
-import { Menu } from './menu';
+import React, { useState } from 'react';
+import { withRouter, RouteComponentProps } from 'react-router';
 import { reportError } from '../utils/errors';
 import * as db from '../utils/db';
+import { BigTextAreaPage } from './big_textarea';
 
-export class LoginPage extends Component<
-  RouteComponentProps,
-  { value: string }
-> {
-  constructor(props: RouteComponentProps) {
-    super(props);
-    this.state = { value: '' };
+export const LoginPage: React.FC<RouteComponentProps> = props => {
+  async function onSubmit(text: string) {
+    // This await actually waits for the full database
+    // to finish loading, so it won't try and render the index
+    // until the data is available
+    await db.configure(text);
+    props.history.push('/index');
   }
 
-  onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.which === 13 && (e.metaKey || e.shiftKey)) this.onSubmit(e);
-  };
+  return (
+    <BigTextAreaPage handler={onSubmit}>
+      <div className="header">
+        <h1 className="title">Enter the configuration</h1>
+      </div>
+    </BigTextAreaPage>
+  );
+};
 
-  onSubmit = (e: React.SyntheticEvent) => {
-    e.preventDefault();
+export const LoginRedirector = withRouter((props: RouteComponentProps) => {
+  const [dbInitialized, setState] = useState(false);
 
+  if (!dbInitialized && props.location.pathname !== '/login') {
     reportError(async () => {
-      await db.configure(this.state.value);
-      this.props.history.push('/index');
+      const ok = await db.initialize();
+      if (ok) {
+        setState(true);
+      } else {
+        props.history.push('/login');
+      }
     });
-  };
-
-  onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (e && e.target) {
-      this.setState({ value: e.target.value });
-    }
-  };
-
-  render() {
-    return (
-      <>
-        <Menu>
-          <li>
-            <button
-              type="button"
-              className="link-button"
-              onClick={this.onSubmit}
-            >
-              done
-            </button>
-          </li>
-        </Menu>
-
-        <div className="header">
-          <h1 className="title">Enter the configuration</h1>
-        </div>
-
-        <form>
-          <textarea
-            onKeyDown={this.onKeyDown}
-            autoComplete="on"
-            autoCapitalize="sentences"
-            required
-            onChange={this.onChange}
-            value={this.state.value}
-          ></textarea>
-        </form>
-      </>
-    );
   }
-}
+
+  return <></>;
+});
