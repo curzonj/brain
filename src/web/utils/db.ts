@@ -91,14 +91,18 @@ async function isConfigured(): Promise<boolean> {
 
 export async function uploadNotes(sourceDb: PouchDB.Database) {
   const notesLevelDB = dbNamespace('notes');
-  const list = await getAll<models.Note>(notesLevelDB);
+  const list = await getAll<models.NewNote>(notesLevelDB);
 
-  await asyncLib.mapSeries(list, async note => {
-    const docId = `$/queue/${note.topic_id}/${note.id}`;
-    const doc = {
-      _id: docId,
-      ...note,
-    } as models.NewNote;
+  await asyncLib.mapSeries(list, async doc => {
+    const docId = doc._id;
+
+    if (docId === undefined) {
+      return reportError(new Error('doc is missing _id'), {
+        file: 'db',
+        fn: 'uploadNotes',
+        doc,
+      });
+    }
 
     const existing = await sourceDb
       .get(docId)
@@ -107,7 +111,7 @@ export async function uploadNotes(sourceDb: PouchDB.Database) {
           reportError(e, {
             file: 'db',
             fn: 'uploadNotes',
-            noteId: docId,
+            doc,
           });
 
           return e;

@@ -1,13 +1,8 @@
 export function reportError(err: any, opts?: any) {
   if (typeof err === 'function') {
-    try {
-      const res = err();
-      if (res instanceof Promise) {
-        res.catch(reportError);
-      }
-    } catch (e) {
-      reportError(e);
-    }
+    Promise.resolve()
+      .then(err)
+      .catch(e => reportError(e, opts));
   } else {
     if (!opts) {
       opts = {};
