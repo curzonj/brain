@@ -89,7 +89,7 @@
     "version": "oclif-dev readme && git add README.md",
     "lint": "eslint './src/**/*.{ts,tsx}'",
     "predeploy": "npm run build",
-    "deploy": "cp build/index.html build/404.html && echo 'Watch for gpg now...' && gh-pages -d build"
+    "deploy": "cp build/index.html build/404.html && echo 'Watch for gpg now...' && gh-pages -d build -r https://github.com/curzonj/brain-v2-test.git"
   },
   "browserslist": {
     "production": [
