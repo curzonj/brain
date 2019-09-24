@@ -4,7 +4,6 @@ import { deepEqual } from 'fast-equals';
 import { getDB } from './db';
 import { ComplexError } from './errors';
 import * as models from '../common/models';
-import { dumpDatabaseToRDF, mirrorChangesToRDF } from './rdf_dump';
 import { schemaSelector } from './schema';
 import { isValidLiteralType } from '../common/rdf';
 
@@ -24,9 +23,7 @@ export async function applyChanges(
   const db = await getDB();
 
   await db.bulkDocs(changes);
-  await mirrorChangesToRDF(changes);
   await dumpJSON();
-  await dumpDatabaseToRDF();
 }
 
 function validateUpdates(updates: models.DocUpdate[]) {

@@ -53,55 +53,54 @@ definitions:
       queue:
         $ref: "#/definitions/objRefListInput"
   couchTopicUpdate:
-    type: object
-    additionalProperties: false
-    allOf:
-      - anyOf: *editorNodeAnyOf
-      - anyOf:
-        # The can have both, deleting newer records will, but they at least
-        # have to have one of them. deleting older records won't have patches
-        - required: [patches]
-        - required: [_deleted]
-    required:
-      - _id
-      - id
-    properties:
-      <<: *editorNodeProperties
-      _deleted:
-        type: boolean
-      _id:
-        type: string
-      _rev:
-        type: string
-      patches:
-        $ref: "#/definitions/patches"
-      id:
-        $ref: "#/definitions/slashRefString"
-      created_at:
-        type: number
-      next:
-        $ref: "#/definitions/stringList"
-      later:
-        $ref: "#/definitions/stringList"
-      list:
-        $ref: "#/definitions/stringList"
-      related:
-        $ref: "#/definitions/slashRefList"
-      mentions:
-        # TODO computed "mentioned". If a non-parent nests a topic, include that non-parent in the mentioned list of the nested topic when it's not being rendered on that page
-        $ref: "#/definitions/slashRefList"
-      queue:
-        $ref: "#/definitions/slashRefList"
-      seq:
-        type: string
-      topic_id:
-        type: string
-    dependencies:
-      # these are present when deleting notes in the queue
-      seq: [_deleted]
-      topic_id: [_deleted]
-      text: [created_at]
-      _deleted: [_rev]
+    oneOf:
+      - type: object
+        required:
+          - _id
+          - _rev
+          - _deleted
+        properties:
+          _deleted:
+            type: boolean
+            enum: [true]
+          _id:
+            type: string
+          _rev:
+            type: string
+      - type: object
+        additionalProperties: false
+        anyOf: *editorNodeAnyOf
+        required:
+          - _id
+          - id
+          - patches
+        properties:
+          <<: *editorNodeProperties
+          _id:
+            type: string
+          _rev:
+            type: string
+          patches:
+            $ref: "#/definitions/patches"
+          id:
+            $ref: "#/definitions/slashRefString"
+          created_at:
+            type: number
+          next:
+            $ref: "#/definitions/stringList"
+          later:
+            $ref: "#/definitions/stringList"
+          list:
+            $ref: "#/definitions/stringList"
+          related:
+            $ref: "#/definitions/slashRefList"
+          mentions:
+            # TODO computed "mentioned". If a non-parent nests a topic, include that non-parent in the mentioned list of the nested topic when it's not being rendered on that page
+            $ref: "#/definitions/slashRefList"
+          queue:
+            $ref: "#/definitions/slashRefList"
+        dependencies:
+          text: [created_at]
   objRefStringList:
     type: array
     uniqueItems: true

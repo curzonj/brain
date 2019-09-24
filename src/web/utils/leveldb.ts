@@ -1,42 +1,64 @@
 import levelup, { LevelUp } from 'levelup';
 import leveljs from 'level-js';
 import sublevel from 'subleveldown';
-import { AbstractLevelDOWN, AbstractIterator } from 'abstract-leveldown';
-import { RdfStore } from 'quadstore';
-import * as N3 from 'n3';
+import {
+  AbstractLevelDOWN,
+  AbstractIterator,
+  AbstractBatch,
+} from 'abstract-leveldown';
 
-const { DataFactory } = N3;
+import * as models from '../../common/models';
 
-export type TypedLevelUp<V> = LevelUp<
-  AbstractLevelDOWN<string, V>,
-  AbstractIterator<string, V>
->;
+interface TypedLevelUp<V>
+  extends LevelUp<AbstractLevelDOWN<string, V>, AbstractIterator<string, V>> {
+  sub(name: string): TypedLevelUp<V>;
+}
 
-export function nested<V = any>(
+const base: TypedLevelUp<any> = levelup(leveljs('wiki')) as TypedLevelUp<any>;
+
+function subTyped<V = any>(
   db: TypedLevelUp<any>,
   name: string
 ): TypedLevelUp<V> {
-  return sublevel(db, name, { valueEncoding: 'id' });
+  const obj = sublevel(db, name, { valueEncoding: 'id' }) as TypedLevelUp<V>;
+  obj.sub = (name: string) => subTyped<V>(obj as TypedLevelUp<V>, name);
+
+  return obj;
 }
 
-const dbList = {} as { [key: string]: TypedLevelUp<any> };
-export function dbNamespace<V>(name: string): TypedLevelUp<V> {
-  if (!dbList[name]) {
-    dbList[name] = sublevel(base(), name, { valueEncoding: 'id' });
+export const namespaces = {
+  batch: async (b: AbstractBatch[]) => base.batch(b),
+  topics: subTyped<models.Doc>(base, 'topics'),
+  configs: subTyped<any>(base, 'configs'),
+  notes: subTyped<models.NewNote>(base, 'notes'),
+};
+
+export async function iteratorEach<K, V>(
+  iter: AbstractIterator<K, V>,
+  fn: (k: K, v: V) => void | Promise<void>
+) {
+  function next(resolve: () => void, reject: (e: Error) => void) {
+    iter.next((err, k, v) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      if (k === undefined && v === undefined) {
+        resolve();
+        return;
+      }
+
+      try {
+        const ret = fn(k, v);
+        Promise.resolve(ret)
+          .then(() => next(resolve, reject))
+          .catch(reject);
+      } catch (e) {
+        reject(e);
+      }
+    });
   }
 
-  return dbList[name] as TypedLevelUp<V>;
-}
-
-export const rdfStore = new RdfStore(leveljs('rdf'), {
-  dataFactory: DataFactory,
-});
-
-let basedb: TypedLevelUp<any>;
-export function base(): TypedLevelUp<any> {
-  if (!basedb) {
-    basedb = levelup(leveljs('wiki'));
-  }
-
-  return basedb;
+  await new Promise(next);
 }

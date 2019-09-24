@@ -1,37 +1,29 @@
 import PouchDB from 'pouchdb';
 import md5 from 'blueimp-md5';
 import cuid from 'cuid';
-import { AbstractIteratorOptions, AbstractBatch } from 'abstract-leveldown';
-import * as asyncLib from 'async';
+import { AbstractBatch } from 'abstract-leveldown';
 
+import { namespaces, iteratorEach } from './leveldb';
 import { reportError } from './errors';
-import { dbNamespace, nested, base, rdfStore, TypedLevelUp } from './leveldb';
-import * as N3 from 'n3';
 import * as models from '../../common/models';
 
-const { DataFactory } = N3;
-const { namedNode } = DataFactory;
-
-export function getTopic(topicKey: string): Promise<models.Doc> {
-  return dbNamespace<models.Doc>('topics').get(hash(topicKey));
+export async function getTopic(topicKey: string): Promise<models.Doc> {
+  return namespaces.topics.get(hash(topicKey));
 }
 
-export async function pokeBear(topicId: string) {
-  const shortId = topicId.slice(1);
-
-  const tuples = await rdfStore.get({
-    subject: namedNode('https://curzonj.github.io/brain/#' + shortId),
-  });
-  console.log(tuples);
-}
 export async function getNotes(topicId: string): Promise<string[]> {
-  const notesLevelDB = nested<models.NewNote>(dbNamespace('notes'), topicId);
-  const list = await getAll(notesLevelDB);
+  const list = [] as string[];
+  const notesLevelDB = namespaces.notes.sub(topicId);
+  const iter = notesLevelDB.iterator();
 
   // merely by returning the entire list here, unsaved notes
   // would gain the more link, but if you were to add a note
   // onto that unsaved note, the sync would break
-  return list.map(n => n.text);
+  await iteratorEach(iter, (k, value) => {
+    list.push(value.text);
+  });
+
+  return list;
 }
 
 export async function addNote(topicId: string, text: string) {
@@ -43,7 +35,7 @@ export async function addNote(topicId: string, text: string) {
   }
 
   const lastSeq = await getLastSeq();
-  const notesLevelDB = nested<models.NewNote>(dbNamespace('notes'), topicId);
+  const notesLevelDB = namespaces.notes.sub(topicId);
   const id = cuid();
   const payload = {
     _id: `$/queue/${topicId}/${id}`,
@@ -91,10 +83,12 @@ async function isConfigured(): Promise<boolean> {
 }
 
 export async function uploadNotes(sourceDb: PouchDB.Database) {
-  const notesLevelDB = dbNamespace<models.NewNote>('notes');
-  const list = await getAll(notesLevelDB);
+  const iter = namespaces.notes.iterator();
 
-  await asyncLib.mapSeries(list, async doc => {
+  // merely by returning the entire list here, unsaved notes
+  // would gain the more link, but if you were to add a note
+  // onto that unsaved note, the sync would break
+  await iteratorEach(iter, async (k, doc) => {
     const docId = doc._id;
 
     if (docId === undefined) {
@@ -122,7 +116,7 @@ export async function uploadNotes(sourceDb: PouchDB.Database) {
           // the translation between these IDs and couchdb is a
           // little broken so it's easier to just delete them from levelDB
           // when they are deleted from couchdb
-          const topicNotes = nested(dbNamespace('notes'), doc.topic_id);
+          const topicNotes = namespaces.notes.sub(doc.topic_id);
           await topicNotes.del(doc.id);
 
           return e;
@@ -206,7 +200,7 @@ async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
 
   ops.push({ type: 'put', key: '!configs!lastSeq', value: resultSequence });
 
-  await base().batch(ops);
+  await namespaces.batch(ops);
 }
 
 async function updateLevelDB(
@@ -249,7 +243,7 @@ async function updateLevelDB(
 
   ops.push({ type: 'put', key: '!configs!lastSeq', value: resultLastSeq });
 
-  await base().batch(ops);
+  await namespaces.batch(ops);
 
   return updateLevelDB(sourceDb, resultLastSeq);
 }
@@ -258,33 +252,40 @@ let remoteDbMemoized: PouchDB.Database;
 function getRemoteDb() {
   if (!remoteDbMemoized) {
     const config = getDbTarget();
+
+    if (!config) {
+      throw new Error('database configuration unavailable');
+    }
+
     remoteDbMemoized = new PouchDB(config.url, config);
   }
 
   return remoteDbMemoized;
 }
 
-function getDbTarget() {
-  if (localStorage.couchdb_target) {
-    try {
-      const config = JSON.parse(localStorage.couchdb_target);
-      if (!config.url || !config.auth) {
-        throw new Error('Invalid db target config');
-      }
-
-      return config;
-    } catch (e) {
-      reportError(e);
-      delete localStorage.couchdb_target;
-    }
+type DbConfigObject = {
+  url: string;
+} & PouchDB.Configuration.RemoteDatabaseConfiguration;
+function getDbTarget(): DbConfigObject | undefined {
+  if (!localStorage.couchdb_target) {
+    return;
   }
 
-  return null;
+  try {
+    const config = JSON.parse(localStorage.couchdb_target);
+    if (!config.url || !config.auth) {
+      throw new Error('Invalid db target config');
+    }
+
+    return config;
+  } catch (e) {
+    reportError(e);
+    delete localStorage.couchdb_target;
+  }
 }
 
 async function getLastSeq(): Promise<number | string | undefined> {
-  const configsLevelDB = dbNamespace<number | string>('configs');
-  return configsLevelDB.get('lastSeq').catch((err: Error) => undefined);
+  return namespaces.configs.get('lastSeq').catch((err: Error) => undefined);
 }
 
 async function attemptNoteUpload(note: models.Note) {
@@ -306,19 +307,6 @@ function lastSlashItem(docId: string) {
 
 function reverseSlashes(v: string) {
   return v.split('/').reverse();
-}
-
-function getAll<D>(
-  db: TypedLevelUp<D>,
-  options?: AbstractIteratorOptions
-): Promise<D[]> {
-  const list = [] as D[];
-  return new Promise((resolve, reject) => {
-    db.createValueStream(options)
-      .on('data', (data: D) => list.push(data))
-      .on('error', (err: Error) => reject(err))
-      .on('end', () => resolve(list));
-  });
 }
 
 function stripDoc<D extends {}>(doc: PouchDB.Core.ExistingDocument<D>): D {

@@ -33,7 +33,7 @@ interface QuadOp {
 }
 
 type QuadPusher = (s: QuadPushable) => Promise<void>;
-export function getRDFStore(
+export async function getRDFStore(
   source: QuadPusher = pushTopicTuples
 ): Promise<N3.N3Store> {
   const readStream = getPushedTupleStream(source);
@@ -314,7 +314,7 @@ async function exportTrig(readStream: RDF.Stream) {
   await promiseEnd(readStream);
 }
 
-function promiseEnd(e: EventEmitter): Promise<void> {
+async function promiseEnd(e: EventEmitter): Promise<void> {
   return new Promise((resolve, reject) => {
     e.on('end', () => {
       resolve();

@@ -14,13 +14,13 @@ export function schemaSelector(definition: string): Ajv.ValidateFunction {
 }
 
 export type DecodedSchema = $RefParser.JSONSchema;
-function dereferenceSchema() {
+async function dereferenceSchema() {
   const schemaDocument = yaml.safeLoad(schemaContents);
   return $RefParser.dereference(schemaDocument);
 }
 
 const schemaPromise = dereferenceSchema();
-export function getSchemaContents(): Promise<DecodedSchema> {
+export async function getSchemaContents(): Promise<DecodedSchema> {
   return schemaPromise;
 }
 

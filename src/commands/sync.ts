@@ -33,14 +33,15 @@ module.exports = SyncCommand;
 async function importQueues(): Promise<void> {
   const db = await getDB();
 
-  const docs: models.ExistingDoc[] = await db
-    .allDocs<models.ExistingDoc>({
-      include_docs: true,
-      startkey: '$/queue/',
-      endkey: '$/queue/\ufff0',
-    })
-    .then(({ rows }) => rows.map(({ doc }) => doc))
-    .then(list => list.filter((doc): doc is models.ExistingDoc => !!doc));
+  const response = await db.allDocs<models.ExistingDoc>({
+    include_docs: true,
+    startkey: '$/queue/',
+    endkey: '$/queue/\ufff0',
+  });
+
+  const docs: models.ExistingDoc[] = response.rows
+    .map(r => r.doc)
+    .filter((doc): doc is models.ExistingDoc => !!doc);
 
   // The queue items used to be uploaded incorrectly which causes problems for
   // the applyChanges code.
@@ -52,7 +53,7 @@ async function importQueues(): Promise<void> {
 
   const updates = await Promise.all(
     groupBy(docs, (d: models.ExistingDoc) => d.topic_id).map(
-      ([id, list]: [string, models.ExistingDoc[]]) =>
+      async ([id, list]: [string, models.ExistingDoc[]]) =>
         buildQueueTopicUpdates(id, list)
     )
   ).then(list => list.flat());

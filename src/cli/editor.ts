@@ -33,7 +33,7 @@ type invalidResultHandler = (
   editorContents: string
 ) => Promise<editFileResult>;
 
-export function editFile(
+export async function editFile(
   input: string,
   onInvalidResult: invalidResultHandler,
   originalInput?: string

@@ -63,7 +63,7 @@ const databasePromise = Promise.resolve().then(async () => {
       })
     );
 
-    prodDB.close();
+    await prodDB.close();
 
     return db;
   });
