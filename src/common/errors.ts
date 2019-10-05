@@ -70,7 +70,9 @@ export async function annotateErrors<T>(
   fn: () => Promise<T>
 ): Promise<T> {
   const stack = new Error();
-  Error.captureStackTrace(stack, annotateErrors);
+  if (Error.captureStackTrace) {
+    Error.captureStackTrace(stack, annotateErrors);
+  }
 
   return fn().catch(e => {
     if (!(e instanceof ComplexError)) {
@@ -90,7 +92,9 @@ export function reportError(err: any, opts: any = {}) {
     // Promises make the stack very useful, so we stash
     // a useful stack in case we need it.
     opts.stack = new Error();
-    Error.captureStackTrace(opts.stack, reportError);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(opts.stack, reportError);
+    }
 
     Promise.resolve()
       .then(err)
