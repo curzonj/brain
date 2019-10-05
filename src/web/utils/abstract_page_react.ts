@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { buildAbstractPage, AbstractPage } from './abstract_page';
-import { reportError } from '../utils/errors';
+import { reportError } from '../../common/errors';
 
 export interface LoadedAbstractPage {
   loaded?: string;

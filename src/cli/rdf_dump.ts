@@ -6,7 +6,7 @@ import { isomorphic } from 'rdf-isomorphic';
 import * as RDF from 'rdf-js';
 import { Readable } from 'stream';
 import { getDB } from './db';
-import { ComplexError } from './errors';
+import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
 import {
   prefix,

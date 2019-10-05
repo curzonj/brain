@@ -1,5 +1,4 @@
 import levelup, { LevelUp } from 'levelup';
-import sublevel from './sublevel';
 import {
   AbstractLevelDOWN,
   AbstractIterator,
@@ -9,6 +8,8 @@ import {
   PutBatch,
   DelBatch,
 } from 'abstract-leveldown';
+import sublevel from './sublevel';
+import { ComplexError, annotateErrors } from '../common/errors';
 
 type Indexer<V> = (o: V) => undefined | string | string[];
 interface Indexers<V> {
@@ -43,13 +44,22 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
   }
 
   private async updateIndexes(batches: AbstractBatch<string, V>[]) {
-    await Promise.all(
-      Object.values(this.idx).map(async indexes => indexes.updateIndex(batches))
-    );
+    try {
+      await Promise.all(
+        Object.values(this.idx).map(async indexes =>
+          indexes.updateIndex(batches)
+        )
+      );
+    } catch (e) {
+      throw new ComplexError('failed to update indexes for batch', {
+        cause: e,
+        batches,
+      });
+    }
   }
 
   async get(key: string): Promise<V> {
-    return this.db.get(key);
+    return annotateErrors({ key }, () => this.db.get(key));
   }
 
   async put(key: string, value: V, options?: AbstractOptions) {
@@ -92,7 +102,7 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
         iter.next((err, key, value) => {
           if (err) {
             iter.end(err2 => {
-              reject(err);
+              reject(new ComplexError(err));
             });
           } else {
             if (key && value) {
@@ -102,7 +112,7 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
             } else {
               iter.end(err2 => {
                 if (err2) {
-                  reject(err2);
+                  reject(new ComplexError(err2));
                 } else {
                   resolve();
                 }
@@ -117,6 +127,7 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
   }
 }
 
+export const ENDstr = '\xff';
 interface IndexBase<V> {
   get(k: string): Promise<V>;
 }
@@ -139,6 +150,13 @@ class Index<V> {
     this.base = base;
     this.indexDb = secondary;
     this.indexer = indexer;
+  }
+
+  async get(
+    k: string,
+    fn: (k: string, v: V) => void | Promise<void>
+  ): Promise<void> {
+    return this.forEach({ gte: `${k}!`, lt: `${k}!${ENDstr}` }, fn);
   }
 
   async forEach(
@@ -167,7 +185,7 @@ class Index<V> {
             b.type === 'put'
               ? ({
                   type: 'put',
-                  key,
+                  key: [key, b.key].join('!'),
                   value: b.key,
                 } as PutBatch)
               : ({

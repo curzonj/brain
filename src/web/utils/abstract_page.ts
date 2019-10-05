@@ -1,7 +1,6 @@
-import * as db from './db';
-import { namespaces } from './leveldb';
+import { getTopic, getNotes, getReverseMappings } from './data';
 import * as models from '../../common/models';
-import { reportError } from './errors';
+import { reportError, annotateErrors } from '../../common/errors';
 
 const NestedSectionListFieldNames = [
   ['next', 'Next'],
@@ -40,7 +39,7 @@ export async function buildAbstractPage(
     topicId = `/${topicId}`;
   }
 
-  const doc = await db.getTopic(topicId).catch(reportError);
+  const doc = await getTopic(topicId).catch(e => reportError(e, { topicId }));
   if (!doc) {
     return {
       title: topicId,
@@ -52,28 +51,22 @@ export async function buildAbstractPage(
     };
   }
 
-  await namespaces.topics.idx.list.forEach(
-    {
-      gte: doc.id,
-      lt: doc.id,
-    },
-    (k, v) => {
-      console.log(k, v);
-    }
-  );
+  return annotateErrors({ doc }, async () => {
+    await getReverseMappings(doc.id);
 
-  const sections = await Promise.all([
-    todoSection(doc),
-    frontSection(doc),
-    listSections(doc),
-    otherFieldsSection(doc),
-  ]);
+    const sections = await Promise.all([
+      todoSection(doc),
+      frontSection(doc),
+      listSections(doc),
+      otherFieldsSection(doc),
+    ]);
 
-  return {
-    title: deriveTitle(doc),
-    breadcrumbs: await breadcrumbs(doc),
-    sections: sections.flat(),
-  };
+    return {
+      title: deriveTitle(doc),
+      breadcrumbs: await breadcrumbs(doc),
+      sections: sections.flat(),
+    };
+  });
 }
 
 async function todoSection(doc: models.Doc): Promise<Section | never[]> {
@@ -112,7 +105,10 @@ async function listSections(doc: models.Doc): Promise<Section[]> {
   return Promise.all(
     list.map(async (s: any) => {
       if (typeof s === 'string' && s.startsWith('/')) {
-        const sectionDoc = await db.getTopic(s);
+        const sectionDoc = await getTopic(s);
+        if (!sectionDoc) {
+          return { text: `Missing ${s}` };
+        }
         return topicSection(sectionDoc);
       }
 
@@ -124,12 +120,14 @@ async function listSections(doc: models.Doc): Promise<Section[]> {
 }
 
 async function topicSection(doc: models.Doc): Promise<Section> {
-  return {
-    title: deriveTitle(doc),
-    text: doc.text,
-    list: await maybeLabelRefs(doc.list),
-    divs: await listFieldNameDivs(NestedSectionListFieldNames, doc),
-  } as Section;
+  return annotateErrors({ doc }, async () => {
+    return {
+      title: deriveTitle(doc),
+      text: doc.text,
+      list: await maybeLabelRefs(doc.list),
+      divs: await listFieldNameDivs(NestedSectionListFieldNames, doc),
+    } as Section;
+  });
 }
 
 async function listFieldNameDivs(names: string[][], doc: models.Doc) {
@@ -149,7 +147,7 @@ async function listFieldNameDivs(names: string[][], doc: models.Doc) {
 }
 
 async function appendQueueToPage(doc: models.Doc) {
-  const notes = await db.getNotes(doc.id);
+  const notes = await getNotes(doc.id);
   if (notes.length === 0) {
     return;
   }
@@ -190,9 +188,11 @@ async function maybeLabelRefs(
   );
 }
 
-async function refToTextObject(topicId: string) {
-  const topic = await db.getTopic(topicId);
-  if (topic.title) {
+async function refToTextObject(topicId: string): Promise<any> {
+  const topic = await getTopic(topicId);
+  if (!topic) {
+    return `Missing ${topicId}`;
+  } else if (topic.title) {
     return {
       ref: topicId,
       label: deriveTitle(topic),
@@ -217,7 +217,10 @@ async function maybeResolveSrc(src: undefined | models.Link) {
   if (typeof src !== 'string') {
     return src;
   } else if (src.startsWith('/')) {
-    const srcNode = await db.getTopic(src);
+    const srcNode = await getTopic(src);
+    if (!srcNode) {
+      return `Missing ${src}`;
+    }
     return {
       ref: src,
       label: deriveTitle(srcNode),

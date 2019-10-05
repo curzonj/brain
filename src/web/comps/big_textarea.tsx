@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { reportError } from '../utils/errors';
+import { reportError } from '../../common/errors';
 import { Menu } from './menu';
 
 type Props = {

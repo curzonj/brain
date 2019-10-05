@@ -8,7 +8,7 @@ import * as tmp from 'tmp';
 import { timingAsync, timingSync } from './timing';
 import { applyChanges, topicToDocID, generatePatches } from './content';
 import { getDB } from './db';
-import { ComplexError } from './errors';
+import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
 import {
   EditorDoc,

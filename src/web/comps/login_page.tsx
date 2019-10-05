@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { withRouter, RouteComponentProps } from 'react-router';
-import { reportError } from '../utils/errors';
-import * as db from '../utils/db';
+import { reportError } from '../../common/errors';
+import { configure, initialize } from '../utils/data';
 import { BigTextAreaPage } from './big_textarea';
 
 export const LoginPage: React.FC<RouteComponentProps> = props => {
@@ -9,7 +9,7 @@ export const LoginPage: React.FC<RouteComponentProps> = props => {
     // This await actually waits for the full database
     // to finish loading, so it won't try and render the index
     // until the data is available
-    await db.configure(text);
+    await configure(text);
     props.history.push('/index');
   }
 
@@ -27,7 +27,7 @@ export const LoginRedirector = withRouter((props: RouteComponentProps) => {
 
   if (!dbInitialized && props.location.pathname !== '/login') {
     reportError(async () => {
-      const ok = await db.initialize();
+      const ok = await initialize();
       if (ok) {
         setState(true);
       } else {

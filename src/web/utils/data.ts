@@ -1,27 +1,44 @@
 import PouchDB from 'pouchdb';
-import md5 from 'blueimp-md5';
 import cuid from 'cuid';
 
-import { namespaces } from './leveldb';
-import { reportError } from './errors';
+import * as leveldb from './leveldb';
+import { reportError, ComplexError, annotateErrors } from '../../common/errors';
 import * as models from '../../common/models';
 
-export async function getTopic(topicKey: string): Promise<models.Doc> {
-  return namespaces.topics.get(hash(topicKey));
+export async function getReverseMappings(topicId: string) {
+  await leveldb.topics.idx.list.get(leveldb.hash(topicId), (k, v) => {
+    console.log(k, v);
+  });
+}
+
+export async function getTopic(topicKey: string): Promise<models.Doc | void> {
+  return annotateErrors({ topicKey }, () =>
+    leveldb.topics.get(leveldb.hash(topicKey))
+  ).catch(err => {
+    if (err.name === 'NotFoundError' && err.details) {
+      console.log({ error: err.message, ...err.details });
+    } else {
+      reportError(err);
+    }
+  });
 }
 
 export async function getNotes(topicId: string): Promise<string[]> {
   const list = [] as string[];
-  const notesLevelDB = namespaces.notes.sub(topicId);
+  const notesLevelDB = leveldb.notes.sub(topicId);
 
   // merely by returning the entire list here, unsaved notes
   // would gain the more link, but if you were to add a note
   // onto that unsaved note, the sync would break
   await notesLevelDB.forEach({}, (k, value) => {
     if (!value.text) {
-      console.log(k);
-      console.log(value);
-      throw new Error('note in the datastore is missing the text field');
+      throw new ComplexError(
+        'note in the datastore is missing the text field',
+        {
+          key: k,
+          value,
+        }
+      );
     }
     list.push(value.text);
   });
@@ -38,7 +55,7 @@ export async function addNote(topicId: string, text: string) {
   }
 
   const lastSeq = await getLastSeq();
-  const notesLevelDB = namespaces.notes.sub(topicId);
+  const notesLevelDB = leveldb.notes.sub(topicId);
   const id = cuid();
   const payload = {
     _id: `$/queue/${topicId}/${id}`,
@@ -86,7 +103,7 @@ async function isConfigured(): Promise<boolean> {
 }
 
 export async function uploadNotes(sourceDb: PouchDB.Database) {
-  await namespaces.notes.forEach({}, async (k, doc) => {
+  await leveldb.notes.forEach({}, async (k, doc) => {
     const docId = doc._id;
 
     if (docId === undefined) {
@@ -114,7 +131,7 @@ export async function uploadNotes(sourceDb: PouchDB.Database) {
           // the translation between these IDs and couchdb is a
           // little broken so it's easier to just delete them from levelDB
           // when they are deleted from couchdb
-          const topicNotes = namespaces.notes.sub(doc.topic_id);
+          const topicNotes = leveldb.notes.sub(doc.topic_id);
           await topicNotes.del(doc.id);
 
           return e;
@@ -168,7 +185,10 @@ async function sync() {
 
 async function syncToLevelDB(sourceDb: PouchDB.Database) {
   const lastSeq = await getLastSeq();
-  if (!lastSeq) {
+  const schemaCurrent = await leveldb.isStorageSchemaCurrent();
+
+  if (!lastSeq || !schemaCurrent) {
+    await leveldb.resetStorageSchema();
     await importTopicsToLevelDB(sourceDb);
   } else {
     await updateLevelDB(sourceDb, lastSeq);
@@ -188,13 +208,13 @@ async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
   await Promise.all(
     rows.map(async ({ doc }) => {
       if (doc) {
-        await namespaces.topics.put(lastSlashItem(doc._id), stripDoc(doc));
+        await leveldb.topics.put(lastSlashItem(doc._id), stripDoc(doc));
       }
     })
   );
 
-  await namespaces.configs.put('lastSeq', resultSequence);
-  await namespaces.write();
+  await leveldb.configs.put('lastSeq', resultSequence);
+  await leveldb.write();
 }
 
 async function updateLevelDB(
@@ -221,17 +241,17 @@ async function updateLevelDB(
         // won't show up until they get synced on my laptop
         return;
       } else if (change.deleted) {
-        await namespaces.topics.del(lastSlashItem(change.id));
+        await leveldb.topics.del(lastSlashItem(change.id));
       } else if (change.doc && change.doc.id) {
-        await namespaces.topics.put(lastSlashItem(change.id), stripDoc(
+        await leveldb.topics.put(lastSlashItem(change.id), stripDoc(
           change.doc
         ) as models.Doc);
       }
     })
   );
 
-  await namespaces.configs.put('lastSeq', resultLastSeq);
-  await namespaces.write();
+  await leveldb.configs.put('lastSeq', resultLastSeq);
+  await leveldb.write();
 
   return updateLevelDB(sourceDb, resultLastSeq);
 }
@@ -273,7 +293,7 @@ function getDbTarget(): DbConfigObject | undefined {
 }
 
 async function getLastSeq(): Promise<number | string | undefined> {
-  return namespaces.configs.get('lastSeq').catch((err: Error) => undefined);
+  return leveldb.configs.get('lastSeq').catch((err: Error) => undefined);
 }
 
 async function attemptNoteUpload(note: models.Note) {
@@ -283,10 +303,6 @@ async function attemptNoteUpload(note: models.Note) {
 
   const remoteDb = getRemoteDb();
   await remoteDb.put(note);
-}
-
-export function hash(s: string) {
-  return md5(s);
 }
 
 function lastSlashItem(docId: string) {

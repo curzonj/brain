@@ -1,7 +1,7 @@
 import React from 'react';
 import { RouteComponentProps } from 'react-router';
 import { useAbstractPage } from '../utils/abstract_page_react';
-import { addNote } from '../utils/db';
+import { addNote } from '../utils/data';
 import { TopicHeader } from './topic_page';
 import { BigTextAreaPage } from './big_textarea';
 

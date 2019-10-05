@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import { deepEqual } from 'fast-equals';
 import { getDB } from './db';
-import { ComplexError } from './errors';
+import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
 import { schemaSelector } from './schema';
 import { isValidLiteralType } from '../common/rdf';
