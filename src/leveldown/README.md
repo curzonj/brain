@@ -2,7 +2,6 @@
 
 Promise compatible up to date versions of:
 
-* batchlevel
 * level-auto-index
 * level-hookdown
 

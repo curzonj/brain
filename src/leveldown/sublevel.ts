@@ -2,7 +2,6 @@ import { Bytes } from 'leveldown';
 import wrap from 'level-option-wrap';
 import {
   AbstractLevelDOWN,
-  AbstractOpenOptions,
   ErrorCallback,
   AbstractIterator,
   AbstractIteratorOptions,
@@ -11,21 +10,12 @@ import {
   ErrorKeyValueCallback,
   AbstractOptions,
 } from 'abstract-leveldown';
-
-export type WritableBatch<K = any, V = any> =
-  | WritablePutBatch<K, V>
-  | WritableDelBatch<K, V>;
-
-export interface WritablePutBatch<K = any, V = any> {
-  readonly type: 'put';
-  key: K;
-  value: V;
-}
-
-export interface WritableDelBatch<K = any, V = any> {
-  readonly type: 'del';
-  key: K;
-}
+import {
+  WrappedAbstract,
+  WrappingHandler,
+  WritableBatch,
+  LUP,
+} from './wrap_abstract';
 
 interface SublevelOptions {
   separator?: string;
@@ -36,119 +26,87 @@ interface OptionsWrapper<K extends Bytes> {
   lt: (x: K) => K;
 }
 
-interface ImplementsAbstractLevelDOWN<K extends Bytes, V> {
-  _open(options: AbstractOpenOptions, cb: ErrorCallback): void;
-  _close(cb: ErrorCallback): void;
-  _get(key: K, options: AbstractGetOptions, cb: ErrorValueCallback<V>): void;
-  _put(key: K, value: V, options: AbstractOptions, cb: ErrorCallback): void;
-  _del(key: K, options: AbstractOptions, cb: ErrorCallback): void;
-  _batch(
-    array: WritableBatch<K, V>[],
-    options: AbstractOptions,
-    cb: ErrorCallback
-  ): void;
-  _iterator(options: AbstractIteratorOptions<K>): AbstractIterator<K, V>;
-}
+type ALD<K> = AbstractLevelDOWN<K, any>;
 
-class Sublevel<
-  V,
-  K extends Bytes,
-  DB extends AbstractLevelDOWN<K> = AbstractLevelDOWN<K>
-> extends AbstractLevelDOWN<K, V> implements ImplementsAbstractLevelDOWN<K, V> {
+class Sublevel<V, K extends Bytes> implements WrappingHandler<V, K> {
   readonly type = 'sublevel';
-  db: DB;
-  leveldown?: DB;
   prefix: string;
   _wrapper: OptionsWrapper<K>;
 
-  constructor(db: DB, prefix: string = '', opts: SublevelOptions = {}) {
-    // The types want a string param, but the JS doesn't take a param
-    super('');
-
-    this.db = db;
+  constructor(prefix: string = '', opts: SublevelOptions = {}) {
     this.prefix = buildPrefix(prefix, opts.separator);
     this._wrapper = buildWrapper<K>(() => this.prefix);
   }
 
-  _open(options: AbstractOpenOptions, cb: ErrorCallback) {
-    this.db.open(err => {
-      if (err) return cb(err);
+  down(db: ALD<K>): ALD<K> | undefined {
+    const subdb = down(db, this.type);
+    if (subdb && subdb.prefix) {
+      this.prefix = subdb.prefix + this.prefix;
 
-      const subdb = down(this.db, this.type);
-      if (subdb && subdb.prefix) {
-        this.prefix = subdb.prefix + this.prefix;
-        this.leveldown = down(subdb.db);
-      } else {
-        this.leveldown = down(this.db);
-      }
+      return down(subdb.db);
+    }
 
-      cb(undefined);
-    });
+    return down(db);
   }
 
-  _close(cb: ErrorCallback) {
-    this.ifOpen(cb, db => db.close(cb));
+  get(
+    db: ALD<K>,
+    key: K,
+    options: AbstractGetOptions,
+    cb: ErrorValueCallback<V>
+  ) {
+    db.get(concat(this.prefix, key), options, cb);
   }
 
-  _get(key: K, options: AbstractGetOptions, cb: ErrorValueCallback<V>) {
-    this.ifOpen(cb, db => db.get(concat(this.prefix, key), options, cb));
+  put(
+    db: ALD<K>,
+    key: K,
+    value: V,
+    options: AbstractOptions,
+    cb: ErrorCallback
+  ) {
+    db.put(concat(this.prefix, key), value, options, cb);
   }
 
-  _put(key: K, value: V, options: AbstractOptions, cb: ErrorCallback) {
-    this.ifOpen(cb, db => db.put(concat(this.prefix, key), value, options, cb));
+  del(db: ALD<K>, key: K, options: AbstractOptions, cb: ErrorCallback) {
+    db.del(concat(this.prefix, key), options, cb);
   }
 
-  _del(key: K, options: AbstractOptions, cb: ErrorCallback) {
-    this.ifOpen(cb, db => db.del(concat(this.prefix, key), options, cb));
-  }
-
-  _batch(
+  batch(
+    db: ALD<K>,
     operations: WritableBatch<K, V>[],
     options: AbstractOptions,
     cb: ErrorCallback
   ) {
-    this.ifOpen(cb, db => {
-      // No need to make a copy of the array, abstract-leveldown does that
-      for (var i = 0; i < operations.length; i++) {
-        operations[i].key = concat(this.prefix, operations[i].key);
-      }
-
-      db.batch(operations, options, cb);
-    });
-  }
-
-  _iterator(options: AbstractIteratorOptions<K>): AbstractIterator<K, V> {
-    if (this.leveldown === undefined) {
-      throw new Error('not open yet');
+    // No need to make a copy of the array, abstract-leveldown does that
+    for (var i = 0; i < operations.length; i++) {
+      operations[i].key = concat(this.prefix, operations[i].key);
     }
 
+    db.batch(operations, options, cb);
+  }
+
+  iterator(
+    src: ALD<K>,
+    leveldown: ALD<K>,
+    options: AbstractIteratorOptions<K>
+  ): AbstractIterator<K, V> {
     const xopts = addRestOptions(
       wrap(fixRange(options), this._wrapper),
       options
     );
-    return new SubIterator(this, this.leveldown.iterator(xopts), this.prefix);
-  }
-
-  private ifOpen(
-    cb: ErrorCallback | ErrorValueCallback<V>,
-    fn: (db: DB) => void
-  ) {
-    if (this.leveldown) {
-      fn(this.leveldown);
-    } else {
-      (cb as ErrorCallback)(new Error('not open yet'));
-    }
+    return new SubIterator(src, leveldown.iterator(xopts), this.prefix);
   }
 }
 
-class SubIterator<
-  V,
-  K extends Bytes,
-  DB extends AbstractLevelDOWN<K, V>
-> extends AbstractIterator<K, V> {
+class SubIterator<V, K extends Bytes> extends AbstractIterator<K, V> {
   iterator: AbstractIterator<K, V>;
   prefix: string;
-  constructor(db: DB, ite: AbstractIterator<K, V>, prefix: string) {
+  constructor(
+    db: AbstractLevelDOWN<K, V>,
+    ite: AbstractIterator<K, V>,
+    prefix: string
+  ) {
     super(db);
 
     this.iterator = ite;
@@ -169,16 +127,12 @@ class SubIterator<
     this.iterator.end(cb);
   }
 }
-function compatibleConstructor<
-  V,
-  K extends Bytes,
-  DB extends AbstractLevelDOWN<K> = AbstractLevelDOWN<K>
->(
-  db: DB,
+function compatibleConstructor<V, K extends Bytes = string>(
+  db: LUP<K>,
   prefix: string = '',
   options: SublevelOptions = {}
-): Sublevel<V, K, DB> {
-  return new Sublevel(db, prefix, options);
+): AbstractLevelDOWN<K, V> {
+  return new WrappedAbstract(db, new Sublevel(prefix, options));
 }
 
 function fixRange<K extends Bytes>(

@@ -194,7 +194,6 @@ async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
   );
 
   await namespaces.configs.put('lastSeq', resultSequence);
-
   await namespaces.write();
 }
 
