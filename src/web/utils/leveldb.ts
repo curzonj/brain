@@ -13,12 +13,18 @@ const batched = batching<any, string>(
   levelup(encoding<string, any>(leveljsStore, { valueEncoding: 'id' }))
 );
 const base = wrap(batched.db);
-const codeStorageVersion = 3;
+const codeStorageVersion = 4;
 
 export const write = batched.write;
 
 export const topics = base.subIndexed<models.Doc>('topics')({
   queue: (d: models.Doc) => (d.queue || []).map(hash),
+  related: (d: models.Doc) => (d.related || []).map(hash),
+  mentions: (d: models.Doc) => (d.mentions || []).map(hash),
+  next: (d: models.Doc) =>
+    (d.next || []).filter(l => l.startsWith('/')).map(hash),
+  later: (d: models.Doc) =>
+    (d.later || []).filter(l => l.startsWith('/')).map(hash),
   list: (d: models.Doc) =>
     (d.list || []).filter(l => l.startsWith('/')).map(hash),
 });

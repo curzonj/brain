@@ -5,10 +5,15 @@ import * as leveldb from './leveldb';
 import { reportError, ComplexError, annotateErrors } from '../../common/errors';
 import * as models from '../../common/models';
 
-export async function getReverseMappings(topicId: string) {
-  await leveldb.topics.idx.list.get(leveldb.hash(topicId), (k, v) => {
-    console.log(k, v);
-  });
+export async function getReverseMappings(
+  topicId: string
+): Promise<models.Doc[]> {
+  const hashed = leveldb.hash(topicId);
+  const glob = await Promise.all(
+    Object.values(leveldb.topics.idx).map(idx => idx.get(hashed))
+  );
+
+  return glob.flat();
 }
 
 export async function getTopic(topicKey: string): Promise<models.Doc | void> {

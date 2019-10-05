@@ -27,9 +27,14 @@ export interface AbstractPage {
 
 export interface Section {
   title?: string;
-  text?: any;
-  list?: any[];
-  divs?: any[];
+  text?: string;
+  list?: TextObject[];
+  divs?: Div[];
+}
+
+export interface Div {
+  heading: string;
+  list?: TextObject[];
 }
 
 export async function buildAbstractPage(
@@ -52,8 +57,6 @@ export async function buildAbstractPage(
   }
 
   return annotateErrors({ doc }, async () => {
-    await getReverseMappings(doc.id);
-
     const sections = await Promise.all([
       todoSection(doc),
       frontSection(doc),
@@ -130,17 +133,22 @@ async function topicSection(doc: models.Doc): Promise<Section> {
   });
 }
 
-async function listFieldNameDivs(names: string[][], doc: models.Doc) {
+async function listFieldNameDivs(
+  names: string[][],
+  doc: models.Doc
+): Promise<Div[]> {
   const p = await Promise.all(
-    names.map(async ([field, heading]) => {
-      if (!doc[field]) return [];
-      return [
-        {
-          heading,
-          list: await maybeLabelRefs(doc[field] as any[]),
-        },
-      ];
-    })
+    names.map(
+      async ([field, heading]): Promise<Div[]> => {
+        if (!doc[field]) return [];
+        return [
+          {
+            heading,
+            list: await maybeLabelRefs(doc[field] as any[]),
+          },
+        ];
+      }
+    )
   );
 
   return p.flat();
@@ -161,10 +169,18 @@ async function appendQueueToPage(doc: models.Doc) {
 async function otherFieldsSection(doc: models.Doc) {
   await appendQueueToPage(doc);
 
+  const backrefs = await getReverseMappings(doc.id).then(list =>
+    Promise.all(list.map(topicToTextObject))
+  );
   const divs = await listFieldNameDivs(LastSectionListFieldNames, doc);
-  if (divs.length === 0) {
+  if (divs.length === 0 && backrefs.length === 0) {
     return [];
   }
+
+  divs.unshift({
+    heading: 'Backrefs',
+    list: backrefs,
+  });
 
   return {
     divs,
@@ -173,7 +189,7 @@ async function otherFieldsSection(doc: models.Doc) {
 
 async function maybeLabelRefs(
   list: undefined | any[]
-): Promise<undefined | any[]> {
+): Promise<undefined | TextObject[]> {
   if (!list || list.length === 0) return;
 
   return Promise.all(
@@ -188,23 +204,32 @@ async function maybeLabelRefs(
   );
 }
 
-async function refToTextObject(topicId: string): Promise<any> {
+async function refToTextObject(topicId: string): Promise<TextObject> {
   const topic = await getTopic(topicId);
   if (!topic) {
     return `Missing ${topicId}`;
-  } else if (topic.title) {
+  } else {
+    return topicToTextObject(topic);
+  }
+}
+
+type TextObject =
+  | { ref: string; label?: string; text?: string; src?: any }
+  | string;
+async function topicToTextObject(topic: models.Doc): Promise<TextObject> {
+  if (topic.title) {
     return {
-      ref: topicId,
+      ref: topic.id,
       label: deriveTitle(topic),
     };
   } else if (!topic.text) {
     return {
-      ref: topicId,
+      ref: topic.id,
       label: deriveTitle(topic),
     };
   } else {
     return {
-      ref: topicId,
+      ref: topic.id,
       text: topic.text,
       src: await maybeResolveSrc(topic.src),
     };

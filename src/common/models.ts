@@ -19,6 +19,10 @@ export interface ShortDoc {
   context?: string;
   topic_id?: string;
   queue?: string[];
+  related?: string[];
+  mentions?: string[];
+  next?: string[];
+  later?: string[];
   list?: string[];
   links?: LinkList;
   props?: DumbProps;

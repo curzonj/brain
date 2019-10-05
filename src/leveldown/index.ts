@@ -91,6 +91,16 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
     return new LevelWrapper<VS, {}>(sublevel<VS, string>(this.db, name), {});
   }
 
+  async getAll(options: AbstractIteratorOptions): Promise<V[]> {
+    const list = [] as V[];
+
+    await this.forEach(options, (k, v) => {
+      list.push(v);
+    });
+
+    return list;
+  }
+
   async forEach(
     options: AbstractIteratorOptions,
     fn: (k: string, v: V) => void | Promise<void>
@@ -152,11 +162,18 @@ class Index<V> {
     this.indexer = indexer;
   }
 
-  async get(
-    k: string,
-    fn: (k: string, v: V) => void | Promise<void>
-  ): Promise<void> {
-    return this.forEach({ gte: `${k}!`, lt: `${k}!${ENDstr}` }, fn);
+  async get(k: string): Promise<V[]> {
+    return this.getAll({ gte: `${k}!`, lt: `${k}!${ENDstr}` });
+  }
+
+  async getAll(options: AbstractIteratorOptions): Promise<V[]> {
+    const list = [] as V[];
+
+    await this.forEach(options, (k, v) => {
+      list.push(v);
+    });
+
+    return list;
   }
 
   async forEach(
