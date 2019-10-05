@@ -1,9 +1,8 @@
 import PouchDB from 'pouchdb';
 import md5 from 'blueimp-md5';
 import cuid from 'cuid';
-import { AbstractBatch } from 'abstract-leveldown';
 
-import { namespaces, iteratorEach } from './leveldb';
+import { namespaces } from './leveldb';
 import { reportError } from './errors';
 import * as models from '../../common/models';
 
@@ -14,12 +13,16 @@ export async function getTopic(topicKey: string): Promise<models.Doc> {
 export async function getNotes(topicId: string): Promise<string[]> {
   const list = [] as string[];
   const notesLevelDB = namespaces.notes.sub(topicId);
-  const iter = notesLevelDB.iterator();
 
   // merely by returning the entire list here, unsaved notes
   // would gain the more link, but if you were to add a note
   // onto that unsaved note, the sync would break
-  await iteratorEach(iter, (k, value) => {
+  await notesLevelDB.forEach({}, (k, value) => {
+    if (!value.text) {
+      console.log(k);
+      console.log(value);
+      throw new Error('note in the datastore is missing the text field');
+    }
     list.push(value.text);
   });
 
@@ -83,12 +86,7 @@ async function isConfigured(): Promise<boolean> {
 }
 
 export async function uploadNotes(sourceDb: PouchDB.Database) {
-  const iter = namespaces.notes.iterator();
-
-  // merely by returning the entire list here, unsaved notes
-  // would gain the more link, but if you were to add a note
-  // onto that unsaved note, the sync would break
-  await iteratorEach(iter, async (k, doc) => {
+  await namespaces.notes.forEach({}, async (k, doc) => {
     const docId = doc._id;
 
     if (docId === undefined) {
@@ -186,21 +184,18 @@ async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
     endkey: `$/topics/\uFFF0`,
     update_seq: true,
   });
-  const ops = rows.flatMap(({ doc }) => {
-    if (!doc) {
-      return [];
-    }
 
-    return {
-      type: 'put',
-      key: `!topics!${lastSlashItem(doc._id)}`,
-      value: stripDoc(doc),
-    } as AbstractBatch;
-  });
+  await Promise.all(
+    rows.map(async ({ doc }) => {
+      if (doc) {
+        await namespaces.topics.put(lastSlashItem(doc._id), stripDoc(doc));
+      }
+    })
+  );
 
-  ops.push({ type: 'put', key: '!configs!lastSeq', value: resultSequence });
+  await namespaces.configs.put('lastSeq', resultSequence);
 
-  await namespaces.batch(ops);
+  await namespaces.write();
 }
 
 async function updateLevelDB(
@@ -220,30 +215,24 @@ async function updateLevelDB(
     return;
   }
 
-  const ops: AbstractBatch[] = results.flatMap(change => {
-    if (change.id.startsWith('$/queue/')) {
-      // TODO currently this means that notes from other devices
-      // won't show up until they get synced on my laptop
-      return [];
-    } else if (change.deleted) {
-      return {
-        type: 'del',
-        key: `!topics!${lastSlashItem(change.id)}`,
-      };
-    } else if (change.doc) {
-      return {
-        type: 'put',
-        key: `!topics!${lastSlashItem(change.id)}`,
-        value: stripDoc(change.doc),
-      };
-    } else {
-      return [];
-    }
-  });
+  await Promise.all(
+    results.map(async change => {
+      if (change.id.startsWith('$/queue/')) {
+        // TODO currently this means that notes from other devices
+        // won't show up until they get synced on my laptop
+        return;
+      } else if (change.deleted) {
+        await namespaces.topics.del(lastSlashItem(change.id));
+      } else if (change.doc && change.doc.id) {
+        await namespaces.topics.put(lastSlashItem(change.id), stripDoc(
+          change.doc
+        ) as models.Doc);
+      }
+    })
+  );
 
-  ops.push({ type: 'put', key: '!configs!lastSeq', value: resultLastSeq });
-
-  await namespaces.batch(ops);
+  await namespaces.configs.put('lastSeq', resultLastSeq);
+  await namespaces.write();
 
   return updateLevelDB(sourceDb, resultLastSeq);
 }

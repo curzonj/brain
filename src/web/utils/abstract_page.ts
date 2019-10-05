@@ -1,4 +1,5 @@
 import * as db from './db';
+//import { namespaces } from './leveldb';
 import * as models from '../../common/models';
 import { reportError } from './errors';
 
@@ -50,6 +51,19 @@ export async function buildAbstractPage(
       ],
     };
   }
+  /*
+  TODO finish me
+  await streamEach(
+    namespaces.topics.idx.list,
+    {
+      gte: doc.id,
+      lt: doc.id,
+    },
+    (k, v) => {
+      console.log(k, v);
+    }
+  );
+  */
 
   const sections = await Promise.all([
     todoSection(doc),
@@ -137,7 +151,6 @@ async function listFieldNameDivs(names: string[][], doc: models.Doc) {
   return p.flat();
 }
 
-// TODO this isn't working
 async function appendQueueToPage(doc: models.Doc) {
   const notes = await db.getNotes(doc.id);
   if (notes.length === 0) {

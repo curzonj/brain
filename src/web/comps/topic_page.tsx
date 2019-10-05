@@ -84,7 +84,9 @@ function Breadcrumbs(props: { breadcrumbs: undefined | any[] }) {
 }
 
 function textItem(item: any) {
-  if (typeof item === 'string') {
+  if (!item) {
+    throw new Error('item parameter is missing');
+  } else if (typeof item === 'string') {
     if (item.startsWith('http')) {
       return buildAnchorElement(item);
     }
