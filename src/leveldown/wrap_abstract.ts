@@ -9,35 +9,21 @@ import {
   AbstractGetOptions,
   ErrorValueCallback,
   AbstractOptions,
+  AbstractBatch,
 } from 'abstract-leveldown';
 
 interface ImplementsAbstractLevelDOWN<K extends Bytes, V> {
-  _open(options: AbstractOpenOptions, cb: ErrorCallback): void;
-  _close(cb: ErrorCallback): void;
-  _get(key: K, options: AbstractGetOptions, cb: ErrorValueCallback<V>): void;
-  _put(key: K, value: V, options: AbstractOptions, cb: ErrorCallback): void;
-  _del(key: K, options: AbstractOptions, cb: ErrorCallback): void;
-  _batch(
-    array: WritableBatch<K, V>[],
+  _open?(options: AbstractOpenOptions, cb: ErrorCallback): void;
+  _close?(cb: ErrorCallback): void;
+  _get?(key: K, options: AbstractGetOptions, cb: ErrorValueCallback<V>): void;
+  _put?(key: K, value: V, options: AbstractOptions, cb: ErrorCallback): void;
+  _del?(key: K, options: AbstractOptions, cb: ErrorCallback): void;
+  _batch?(
+    array: AbstractBatch<K, V>[],
     options: AbstractOptions,
     cb: ErrorCallback
   ): void;
-  _iterator(options: AbstractIteratorOptions<K>): AbstractIterator<K, V>;
-}
-
-export type WritableBatch<K = any, V = any> =
-  | WritablePutBatch<K, V>
-  | WritableDelBatch<K, V>;
-
-export interface WritablePutBatch<K = any, V = any> {
-  readonly type: 'put';
-  key: K;
-  value: V;
-}
-
-export interface WritableDelBatch<K = any, V = any> {
-  readonly type: 'del';
-  key: K;
+  _iterator?(options: AbstractIteratorOptions<K>): AbstractIterator<K, V>;
 }
 
 export type ALD<K> = AbstractLevelDOWN<K, any>;
@@ -63,7 +49,7 @@ export interface WrappingHandler<V, K extends Bytes> {
   del(db: ALD<K>, key: K, options: AbstractOptions, cb: ErrorCallback): void;
   batch(
     db: ALD<K>,
-    array: WritableBatch<K, V>[],
+    array: AbstractBatch<K, V>[],
     options: AbstractOptions,
     cb: ErrorCallback
   ): void;
@@ -122,7 +108,7 @@ export class WrappedAbstract<V, K extends Bytes> extends AbstractLevelDOWN<K, V>
   }
 
   _batch(
-    operations: WritableBatch<K, V>[],
+    operations: AbstractBatch<K, V>[],
     options: AbstractOptions,
     cb: ErrorCallback
   ) {

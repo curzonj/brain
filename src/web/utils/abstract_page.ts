@@ -1,5 +1,5 @@
 import * as db from './db';
-//import { namespaces } from './leveldb';
+import { namespaces } from './leveldb';
 import * as models from '../../common/models';
 import { reportError } from './errors';
 
@@ -51,10 +51,8 @@ export async function buildAbstractPage(
       ],
     };
   }
-  /*
-  TODO finish me
-  await streamEach(
-    namespaces.topics.idx.list,
+
+  await namespaces.topics.idx.list.forEach(
     {
       gte: doc.id,
       lt: doc.id,
@@ -63,7 +61,6 @@ export async function buildAbstractPage(
       console.log(k, v);
     }
   );
-  */
 
   const sections = await Promise.all([
     todoSection(doc),

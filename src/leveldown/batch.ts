@@ -3,19 +3,15 @@ import {
   AbstractLevelDOWN,
   ErrorCallback,
   AbstractOptions,
+  AbstractBatch,
 } from 'abstract-leveldown';
-import {
-  WrappedAbstract,
-  WrappingHandler,
-  WritableBatch,
-  LUP,
-} from './wrap_abstract';
+import { WrappedAbstract, WrappingHandler, LUP } from './wrap_abstract';
 
 type ALD<K> = AbstractLevelDOWN<K, any>;
 
 class Batching<V, K extends Bytes> implements WrappingHandler<V, K> {
   readonly type = 'batch';
-  operations: WritableBatch<K, V>[];
+  operations: AbstractBatch<K, V>[];
 
   constructor() {
     this.operations = [];
@@ -46,7 +42,7 @@ class Batching<V, K extends Bytes> implements WrappingHandler<V, K> {
 
   batch(
     db: ALD<K>,
-    ops: WritableBatch<K, V>[],
+    ops: AbstractBatch<K, V>[],
     options: AbstractOptions,
     cb: ErrorCallback
   ) {

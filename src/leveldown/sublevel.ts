@@ -10,12 +10,22 @@ import {
   ErrorKeyValueCallback,
   AbstractOptions,
 } from 'abstract-leveldown';
-import {
-  WrappedAbstract,
-  WrappingHandler,
-  WritableBatch,
-  LUP,
-} from './wrap_abstract';
+import { WrappedAbstract, WrappingHandler, LUP } from './wrap_abstract';
+
+export type WritableBatch<K = any, V = any> =
+  | WritablePutBatch<K, V>
+  | WritableDelBatch<K, V>;
+
+export interface WritablePutBatch<K = any, V = any> {
+  readonly type: 'put';
+  key: K;
+  value: V;
+}
+
+export interface WritableDelBatch<K = any, V = any> {
+  readonly type: 'del';
+  key: K;
+}
 
 interface SublevelOptions {
   separator?: string;
