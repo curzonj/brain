@@ -429,9 +429,11 @@ function renderRefsInDoc(docs: EditorStructure, doc: EditorDoc, k: string) {
         } else {
           const otherDoc = docs[v.slice(1)];
           if (!otherDoc) {
-            throw new ComplexError('missing ref', {
-              ref: v.slice(1),
-            });
+            console.log(`Warning: invalid ref ${v} on ${doc.id}`);
+            return {
+              label: 'WARNING: No such ref',
+              ref: v,
+            };
           }
           return {
             label:

@@ -85,7 +85,7 @@ function pushQueueTopicUpdates(
   { id, text, created_at }: models.ExistingDoc,
   newDocs: models.DocUpdate[]
 ) {
-  if (!text) {
+  if (!text || text.startsWith('/')) {
     return;
   }
 
