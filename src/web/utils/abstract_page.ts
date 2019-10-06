@@ -10,13 +10,6 @@ const NestedSectionListFieldNames = [
   ['links', 'Links'],
 ];
 
-const LastSectionListFieldNames = [
-  ['related', 'Related'],
-  ['mentions', 'Mentions'],
-  ['links', 'Links'],
-  ['queue', 'Queue'],
-];
-
 const TodoListFieldNames = [['next', 'Next'], ['later', 'Later']];
 
 export interface AbstractPage {
@@ -175,25 +168,77 @@ async function appendQueueToPage(doc: models.Doc) {
   });
 }
 
+function textObjectString(to: TextObject): string {
+  if (typeof to === 'string') {
+    return to;
+  } else {
+    return to.ref;
+  }
+}
+
+async function buildRelatedDivList(
+  doc: models.Doc
+): Promise<{ related: TextObject[]; queue: TextObject[] }> {
+  const list: TextObject[] = [];
+
+  function append(fieldList: TextObject[] | undefined) {
+    if (!fieldList) {
+      return;
+    }
+
+    fieldList.forEach(r => {
+      if (!list.find(li => textObjectString(li) === textObjectString(r))) {
+        list.push(r);
+      }
+    });
+  }
+
+  await Promise.all(
+    ['mentions', 'related', 'queue'].map(async field => {
+      append(await maybeLabelRefs(doc[field] as any));
+    })
+  );
+
+  await getReverseMappings(doc.id).then(async list =>
+    append(await Promise.all(list.map(topicToTextObject)))
+  );
+
+  function textObjectSorter(a: TextObject, b: TextObject) {
+    const aS = textObjectString(a);
+    const bS = textObjectString(b);
+    if (aS < bS) {
+      return -1;
+    }
+    if (aS > bS) {
+      return 1;
+    }
+    return 0;
+  }
+
+  const queue = list.filter(
+    t => typeof t === 'string' || (t as any).text !== undefined
+  );
+  const related = list
+    .filter(t => typeof t !== 'string' && (t as any).text === undefined)
+    .sort(textObjectSorter);
+
+  return { related, queue };
+}
+
 async function otherFieldsSection(doc: models.Doc) {
   await appendQueueToPage(doc);
 
-  const backrefs = await getReverseMappings(doc.id).then(list =>
-    Promise.all(list.map(topicToTextObject))
-  );
-  const divs = await listFieldNameDivs(LastSectionListFieldNames, doc);
-  if (divs.length === 0 && backrefs.length === 0) {
-    return [];
-  }
+  const { related, queue } = await buildRelatedDivList(doc);
+  const links = await maybeLabelRefs(doc.links);
+  const divs = [
+    { heading: 'Related', list: related },
+    { heading: 'Links', list: links },
+    { heading: 'Queue', list: queue },
+  ].filter(d => d.list && d.list.length > 0);
 
-  divs.unshift({
-    heading: 'Backrefs',
-    list: backrefs,
-  });
+  if (divs.length === 0) return [];
 
-  return {
-    divs,
-  };
+  return { divs };
 }
 
 async function maybeLabelRefs(

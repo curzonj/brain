@@ -175,7 +175,7 @@ function addPatch(
   } else if (models.isLabeledLink(value)) {
     list.push({ op, field, value: value.link });
   } else {
-    console.log("WARNING: Skipping patch for object: ", field, value);
+    console.log('WARNING: Skipping patch for object: ', field, value);
   }
 }
 
