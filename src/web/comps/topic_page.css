@@ -26,8 +26,6 @@
 
 .topicPage .refLink {
   font-size: 1.2em;
-  margin-bottom: 0.6em;
-  display: block;
 }
 
 .topicPage ul {
@@ -36,7 +34,8 @@
 }
 
 .topicPage li {
-  margin-bottom: 0.4em;
+  margin-bottom: 0.6em;
+  margin-top: 0.6em;
 }
 
 .topicPage section {
