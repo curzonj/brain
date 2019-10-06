@@ -44,7 +44,7 @@ function renderSections(sections: Section[]) {
     return (
       <section key={i}>
         {s.title && <h2 className="title">{s.title}</h2>}
-        {s.text && <p>{s.text}</p>}
+        {s.text && textItem(s, false)}
         {s.list && simpleList(s.list)}
         {s.divs && sectionDivs(s.divs)}
       </section>
@@ -77,7 +77,7 @@ function Breadcrumbs(props: { breadcrumbs: undefined | any[] }) {
   return <></>;
 }
 
-function textItem(item: any) {
+function textItem(item: any, showMore: boolean = true) {
   if (!item) {
     throw new Error('item parameter is missing');
   } else if (typeof item === 'string') {
@@ -85,7 +85,7 @@ function textItem(item: any) {
       return buildAnchorElement(item);
     }
     return <p>{item}</p>;
-  } else if (item.link || item.search) {
+  } else if (!item.text && (item.link || item.search)) {
     return buildAnchorElement(item);
   } else if (item.label) {
     return refLink(item.ref, item.label);
@@ -93,7 +93,8 @@ function textItem(item: any) {
     return (
       <p>
         {item.text}
-        {renderSrc(item.src)}({refLink(item.ref, 'more', 'moreLink')})
+        {item.src && <span> - {renderSrc(item.src)} </span>}
+        {showMore && <span>({refLink(item.ref, 'more', 'moreLink')})</span>}
       </p>
     );
   }
@@ -103,7 +104,7 @@ function renderSrc(src: any) {
   if (!src) {
     return undefined;
   } else if (typeof src === 'string') {
-    return <span>- ${src}</span>;
+    return buildAnchorElement({ link: src, title: 'src' });
   } else if (src.ref) {
     return refLink(src.ref, src.label);
   } else {

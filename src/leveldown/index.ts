@@ -11,7 +11,7 @@ import {
 import sublevel from './sublevel';
 import { ComplexError, annotateErrors } from '../common/errors';
 
-type Indexer<V> = (o: V) => undefined | string | string[];
+export type Indexer<V> = (o: V) => undefined | string | string[];
 interface Indexers<V> {
   [key: string]: Indexer<V>;
 }
@@ -202,17 +202,19 @@ class Index<V> {
           .flat()
           .filter(k => k !== undefined);
         return indexKeys.map(
-          (key: string): AbstractBatch<string, string> =>
-            b.type === 'put'
+          (key: string): AbstractBatch<string, string> => {
+            const indexKey = [key, b.key].join('!');
+            return b.type === 'put'
               ? ({
                   type: 'put',
-                  key: [key, b.key].join('!'),
+                  key: indexKey,
                   value: b.key,
                 } as PutBatch)
               : ({
                   type: 'del',
-                  key,
-                } as DelBatch)
+                  key: indexKey,
+                } as DelBatch);
+          }
         );
       })
     );

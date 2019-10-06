@@ -28,6 +28,7 @@ export interface AbstractPage {
 export interface Section {
   title?: string;
   text?: string;
+  src?: any;
   list?: TextObject[];
   divs?: Div[];
 }
@@ -106,8 +107,8 @@ async function frontSection(doc: models.Doc) {
   }
 
   return {
-    // TODO src, props
     text: doc.text,
+    src: doc.src,
     list: await maybeLabelRefs(isShallow ? undefined : doc.list),
   } as Section;
 }

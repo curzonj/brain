@@ -2,7 +2,7 @@ import leveljs from 'level-js';
 import encoding from 'encoding-down';
 import levelup from 'levelup';
 import md5 from 'blueimp-md5';
-import { wrap } from '../../leveldown';
+import { wrap, Indexer } from '../../leveldown';
 import batching from '../../leveldown/batch';
 import * as models from '../../common/models';
 import { ComplexError } from '../../common/errors';
@@ -13,20 +13,23 @@ const batched = batching<any, string>(
   levelup(encoding<string, any>(leveljsStore, { valueEncoding: 'id' }))
 );
 const base = wrap(batched.db);
-const codeStorageVersion = 4;
+const codeStorageVersion = 5;
 
 export const write = batched.write;
 
+const hl: (f: Indexer<models.Doc>) => Indexer<models.Doc> = fn => doc =>
+  [fn(doc)]
+    .flat()
+    .filter(k => k !== undefined)
+    .map(hash);
 export const topics = base.subIndexed<models.Doc>('topics')({
-  queue: (d: models.Doc) => (d.queue || []).map(hash),
-  related: (d: models.Doc) => (d.related || []).map(hash),
-  mentions: (d: models.Doc) => (d.mentions || []).map(hash),
-  next: (d: models.Doc) =>
-    (d.next || []).filter(l => l.startsWith('/')).map(hash),
-  later: (d: models.Doc) =>
-    (d.later || []).filter(l => l.startsWith('/')).map(hash),
-  list: (d: models.Doc) =>
-    (d.list || []).filter(l => l.startsWith('/')).map(hash),
+  src: hl((d: models.Doc) => (typeof d.src === 'string' ? d.src : undefined)),
+  queue: hl((d: models.Doc) => d.queue),
+  related: hl((d: models.Doc) => d.related),
+  mentions: hl((d: models.Doc) => d.mentions),
+  next: hl((d: models.Doc) => (d.next || []).filter(l => l.startsWith('/'))),
+  later: hl((d: models.Doc) => (d.later || []).filter(l => l.startsWith('/'))),
+  list: hl((d: models.Doc) => (d.list || []).filter(l => l.startsWith('/'))),
 });
 
 export const configs = base.sub<any>('configs');
