@@ -1,6 +1,11 @@
-import { getTopic, getNotes, getReverseMappings } from './data';
+import {
+  getTopic,
+  getNotes,
+  getReverseMappings,
+  loading as dataLoading,
+} from './data';
 import * as models from '../../common/models';
-import { reportError, annotateErrors } from '../../common/errors';
+import { annotateErrors } from '../../common/errors';
 
 const NestedSectionListFieldNames = [
   ['next', 'Next'],
@@ -39,39 +44,48 @@ const sectionFunctions = [
 ] as ((d: models.Doc) => Section | Section[])[];
 export async function buildAbstractPage(
   topicId: string,
-  cb: (p: AbstractPage) => void
+  cb: (p: AbstractPage) => void,
+  progressiveRender: boolean = true
 ): Promise<void> {
   if (!topicId.startsWith('/')) {
     topicId = `/${topicId}`;
   }
 
-  const doc = await getTopic(topicId).catch(e => reportError(e, { topicId }));
+  const doc = await getTopic(topicId);
   if (!doc) {
     return cb({
       title: topicId,
       sections: [
         {
-          text: 'This page does not have any content yet.',
+          text: 'No such topic',
         },
       ],
     });
   }
 
-  return annotateErrors({ doc }, async () => {
+  const reloadWhenDone = dataLoading.isPending();
+
+  await annotateErrors({ doc }, async () => {
     const page = {
       breadcrumbs: await breadcrumbs(doc),
       title: deriveTitle(doc),
       sections: [] as Section[],
     };
-    cb(page);
+    if (progressiveRender) cb(page);
 
     await sectionFunctions.reduce(async (acc, fn) => {
       await acc;
       const sections = [await fn(doc)].flat();
       sections.forEach(s => page.sections.push(s));
-      cb(page);
+
+      if (progressiveRender) cb(page);
     }, Promise.resolve());
+
+    if (!progressiveRender) cb(page);
   });
+
+  if (reloadWhenDone)
+    await dataLoading.then(() => buildAbstractPage(topicId, cb, false));
 }
 
 async function todoSection(doc: models.Doc): Promise<Section | never[]> {
@@ -187,7 +201,10 @@ async function buildRelatedDivList(
     }
 
     fieldList.forEach(r => {
-      if (!list.find(li => textObjectString(li) === textObjectString(r)) && textObjectString(r) !== doc.id) {
+      if (
+        !list.find(li => textObjectString(li) === textObjectString(r)) &&
+        textObjectString(r) !== doc.id
+      ) {
         list.push(r);
       }
     });

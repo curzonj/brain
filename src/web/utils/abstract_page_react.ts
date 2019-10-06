@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { buildAbstractPage, AbstractPage } from './abstract_page';
 import { reportError } from '../../common/errors';
+import { wrapProfiling } from '../../common/performance';
 
 export interface LoadedAbstractPage {
   topicId?: string;
@@ -15,6 +16,8 @@ export function useAbstractPage(topicId: string): AbstractPage | undefined {
   }
 
   reportError(async () =>
-    buildAbstractPage(topicId, page => setState({ page, topicId }))
+    wrapProfiling('buildAbstractPage', async () =>
+      buildAbstractPage(topicId, page => setState({ page, topicId }))
+    )
   );
 }

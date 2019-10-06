@@ -69,18 +69,9 @@ export async function annotateErrors<T>(
   obj: any,
   fn: () => Promise<T>
 ): Promise<T> {
-  const stack = new Error();
-  if (Error.captureStackTrace) {
-    Error.captureStackTrace(stack, annotateErrors);
-  }
-
   return fn().catch(e => {
     if (!(e instanceof ComplexError)) {
-      e = new ComplexError(e, { stack });
-    }
-
-    for (const k in obj) {
-      if (!e.details[k]) e.details[k] = obj[k];
+      e = new ComplexError(e, obj);
     }
 
     throw e;
@@ -89,19 +80,11 @@ export async function annotateErrors<T>(
 
 export function reportError(err: any, opts: any = {}) {
   if (typeof err === 'function') {
-    // Promises make the stack very useful, so we stash
-    // a useful stack in case we need it.
-    opts.stack = new Error();
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(opts.stack, reportError);
-    }
-
     Promise.resolve()
       .then(err)
       .catch(e => reportError(e, opts));
   } else {
     if (err instanceof ComplexError) {
-      delete opts.stack;
       Object.assign(err.details, opts);
     } else {
       err = new ComplexError(err, opts);

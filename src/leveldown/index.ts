@@ -5,6 +5,7 @@ import {
   AbstractIteratorOptions,
   AbstractBatch,
   AbstractOptions,
+  AbstractGetOptions,
   PutBatch,
   DelBatch,
 } from 'abstract-leveldown';
@@ -43,11 +44,15 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
     return idx;
   }
 
-  private async updateIndexes(batches: AbstractBatch<string, V>[]) {
+  private async updateIndexes(
+    batches: AbstractBatch<string, V>[],
+    options: AbstractOptions | undefined,
+    delsPossible: boolean = true
+  ) {
     try {
       await Promise.all(
         Object.values(this.idx).map(async indexes =>
-          indexes.updateIndex(batches)
+          indexes.updateIndex(batches, options, delsPossible)
         )
       );
     } catch (e) {
@@ -58,24 +63,28 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
     }
   }
 
-  async get(key: string): Promise<V> {
-    return annotateErrors({ key }, () => this.db.get(key));
+  async get(key: string, options?: AbstractGetOptions): Promise<V> {
+    return annotateErrors({ key }, () => this.db.get(key, options));
   }
 
   async put(key: string, value: V, options?: AbstractOptions) {
-    if (this.indexed) await this.updateIndexes([{ type: 'del', key }]);
+    if (this.indexed && (!options || options.freshIndexes !== true)) {
+      await this.updateIndexes([{ type: 'del', key }], options);
+    }
+
     await this.db.put(key, value, options);
-    if (this.indexed) await this.updateIndexes([{ type: 'put', key, value }]);
+    if (this.indexed)
+      await this.updateIndexes([{ type: 'put', key, value }], options, false);
   }
 
   async del(key: string, options?: AbstractOptions) {
-    if (this.indexed) await this.updateIndexes([{ type: 'del', key }]);
+    if (this.indexed) await this.updateIndexes([{ type: 'del', key }], options);
     await this.db.del(key, options);
   }
 
   async batch(array: AbstractBatch<string, V>[], options?: AbstractOptions) {
     await this.db.batch(array, options);
-    if (this.indexed) await this.updateIndexes(array);
+    if (this.indexed) await this.updateIndexes(array, options);
   }
 
   // We need to return a sub function in order to have both a required
@@ -187,38 +196,66 @@ class Index<V> {
     });
   }
 
-  async updateIndex(batches: AbstractBatch<string, V>[]) {
-    const indexOps: AbstractBatch<string, string>[][] = await Promise.all(
-      batches.map(async b => {
-        const value =
+  async updateIndex(
+    batches: AbstractBatch<string, V>[],
+    options: AbstractOptions | undefined,
+    possiblePuts: boolean
+  ) {
+    const indexOps: AbstractBatch<string, string>[] = possiblePuts
+      ? await this.indexDelsBatchList(batches)
+      : this.indexPutsBatchList(batches);
+
+    if (indexOps.length > 0) await this.indexDb.batch(indexOps, options);
+  }
+
+  private async indexDelsBatchList(
+    batches: AbstractBatch<string, V>[]
+  ): Promise<AbstractBatch<string, string>[]> {
+    return (await Promise.all(
+      batches.map(async b =>
+        indexBatch(
+          b,
+          this.indexer,
           b.type === 'put'
             ? b.value
-            : await this.base.get(b.key).catch(e => undefined);
-        if (value === undefined) {
-          return [];
-        }
-
-        const indexKeys = [this.indexer(value)]
-          .flat()
-          .filter(k => k !== undefined);
-        return indexKeys.map(
-          (key: string): AbstractBatch<string, string> => {
-            const indexKey = [key, b.key].join('!');
-            return b.type === 'put'
-              ? ({
-                  type: 'put',
-                  key: indexKey,
-                  value: b.key,
-                } as PutBatch)
-              : ({
-                  type: 'del',
-                  key: indexKey,
-                } as DelBatch);
-          }
-        );
-      })
-    );
-
-    await this.indexDb.batch(indexOps.flat());
+            : await this.base.get(b.key).catch(e => undefined)
+        )
+      )
+    )).flat();
   }
+
+  private indexPutsBatchList(
+    batches: AbstractBatch<string, V>[]
+  ): AbstractBatch<string, string>[] {
+    return batches
+      .map(b => indexBatch(b, this.indexer, (b as PutBatch).value))
+      .flat();
+  }
+}
+
+function indexBatch<V>(
+  b: AbstractBatch<string, V>,
+  indexer: Indexer<V>,
+  value: V | undefined
+): AbstractBatch<string, string>[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  const indexKeys = [indexer(value)].flat().filter(k => k !== undefined);
+  return indexKeys.map(
+    (key: string): AbstractBatch<string, string> => {
+      const indexKey = [key, b.key].join('!');
+      return b.type === 'put'
+        ? ({
+            type: 'put',
+            key: indexKey,
+            value: b.key,
+          } as PutBatch)
+        : ({
+            type: 'del',
+            key: indexKey,
+          } as DelBatch);
+    }
+  );
 }

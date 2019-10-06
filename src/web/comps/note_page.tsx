@@ -21,7 +21,7 @@ export const NotePage: React.FC<
 
   return (
     <BigTextAreaPage className="topicPage" handler={onSubmit}>
-      <TopicHeader topicId={topicId} page={page} />
+      {page && <TopicHeader page={page} />}
     </BigTextAreaPage>
   );
 };

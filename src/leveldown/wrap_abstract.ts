@@ -11,7 +11,6 @@ import {
   AbstractOptions,
   AbstractBatch,
 } from 'abstract-leveldown';
-import { ComplexError } from '../common/errors';
 
 interface ImplementsAbstractLevelDOWN<K extends Bytes, V> {
   _open?(options: AbstractOpenOptions, cb: ErrorCallback): void;
@@ -93,7 +92,6 @@ export class WrappedAbstract<V, K extends Bytes> extends AbstractLevelDOWN<K, V>
   }
 
   _get(key: K, options: AbstractGetOptions, cb: ErrorValueCallback<V>) {
-    cb = complexErrorValueCallback(cb, { key, type: this.type });
     this.ifOpen(cb, db =>
       this.handlers.get
         ? this.handlers.get(db, key, options, cb)
@@ -137,14 +135,4 @@ export class WrappedAbstract<V, K extends Bytes> extends AbstractLevelDOWN<K, V>
       (cb as ErrorCallback)(new Error('not open yet'));
     }
   }
-}
-
-function complexErrorValueCallback<V>(cb: ErrorValueCallback<V>, opts: any) {
-  return (err: Error | undefined, value: V) => {
-    if (err) {
-      err = new ComplexError(err, opts);
-    }
-
-    cb(err, value);
-  };
 }

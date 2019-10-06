@@ -4,6 +4,10 @@ import cuid from 'cuid';
 import * as leveldb from './leveldb';
 import { reportError, ComplexError, annotateErrors } from '../../common/errors';
 import * as models from '../../common/models';
+import { wrapProfiling } from '../../common/performance';
+import { Rendezvous } from '../../common/typed_event';
+
+export const loading = new Rendezvous<boolean>();
 
 export async function getReverseMappings(
   topicId: string
@@ -21,7 +25,11 @@ export async function getTopic(topicKey: string): Promise<models.Doc | void> {
     leveldb.topics.get(leveldb.hash(topicKey))
   ).catch(err => {
     if (err.name === 'NotFoundError' && err.details) {
-      console.log({ error: err.message, ...err.details });
+      if (loading.isPending()) {
+        return loading.then(() => getTopic(topicKey));
+      } else {
+        console.log({ error: err.message, ...err.details });
+      }
     } else {
       reportError(err);
     }
@@ -71,19 +79,18 @@ export async function addNote(topicId: string, text: string) {
     text: text.trim(),
   } as models.NewNote;
 
-  await notesLevelDB.put(payload.id, payload);
-  await leveldb.write();
+  await notesLevelDB.put(payload.id, payload, { writeBatch: true });
 
   reportError(async () => attemptNoteUpload(payload), {
     file: 'db',
     fn: 'attemptNoteUpload',
   });
 }
-export async function configure(value: string) {
+export function configure(value: string) {
   JSON.parse(value);
   localStorage.couchdb_target = value;
 
-  await sync();
+  backgroundSync();
 }
 
 async function isConfigured(): Promise<boolean> {
@@ -174,10 +181,13 @@ export async function initialize(): Promise<boolean> {
     return false;
   }
 
-  // Don't wait for this
-  reportError(sync);
+  backgroundSync();
 
   return true;
+}
+
+function backgroundSync() {
+  reportError(sync);
 }
 
 async function sync() {
@@ -189,20 +199,22 @@ async function sync() {
 
   await syncToLevelDB(remoteDb);
   await uploadNotes(remoteDb);
-
-  console.log('sync complete');
 }
 
 async function syncToLevelDB(sourceDb: PouchDB.Database) {
-  const lastSeq = await getLastSeq();
-  const schemaCurrent = await leveldb.isStorageSchemaCurrent();
+  await wrapProfiling('syncToLevelDB', async () => {
+    const lastSeq = await getLastSeq();
+    const schemaCurrent = await leveldb.isStorageSchemaCurrent();
 
-  if (!lastSeq || !schemaCurrent) {
-    await leveldb.resetStorageSchema();
-    await importTopicsToLevelDB(sourceDb);
-  } else {
-    await updateLevelDB(sourceDb, lastSeq);
-  }
+    if (!lastSeq || !schemaCurrent) {
+      await leveldb.resetStorageSchema();
+      await importTopicsToLevelDB(sourceDb);
+    } else {
+      await updateLevelDB(sourceDb, lastSeq);
+    }
+  });
+
+  loading.done(true);
 }
 
 async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
@@ -218,7 +230,9 @@ async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
   await Promise.all(
     rows.map(async ({ doc }) => {
       if (doc) {
-        await leveldb.topics.put(lastSlashItem(doc._id), stripDoc(doc));
+        await leveldb.topics.put(lastSlashItem(doc._id), stripDoc(doc), {
+          freshIndexes: true,
+        });
       }
     })
   );
@@ -237,8 +251,8 @@ async function updateLevelDB(
     >({
       include_docs: true,
       since: lastSeq,
-      limit: 100,
-      batch_size: 100,
+      limit: 200,
+      batch_size: 200,
     });
 
     await Promise.all(

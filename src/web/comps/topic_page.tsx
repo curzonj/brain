@@ -6,13 +6,13 @@ import './topic_page.css';
 import { useAbstractPage } from '../utils/abstract_page_react';
 import { AbstractPage, Section } from '../utils/abstract_page';
 
-export function TopicHeader(props: { topicId: string; page?: AbstractPage }) {
-  const { page, topicId } = props;
+export function TopicHeader(props: { page: AbstractPage }) {
+  const { page } = props;
 
   return (
     <div className="header">
       {page && <Breadcrumbs breadcrumbs={page.breadcrumbs} />}
-      <h1 className="title">{page ? page.title : topicId}</h1>
+      <h1 className="title">{page.title}</h1>
     </div>
   );
 }
@@ -32,8 +32,7 @@ export function TopicPage(props: RouteComponentProps<{ topicId: string }>) {
         </li>
       </Menu>
 
-      <TopicHeader topicId={topicId} page={page} />
-
+      {page && <TopicHeader page={page} />}
       {page && renderSections(page.sections)}
     </div>
   );
