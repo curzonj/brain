@@ -20,16 +20,16 @@ export const write = batched.write;
 const hl: (f: Indexer<models.Doc>) => Indexer<models.Doc> = fn => doc =>
   [fn(doc)]
     .flat()
-    .filter(k => k !== undefined)
+    .filter(k => typeof k === 'string' && k.startsWith('/'))
     .map(hash);
 export const topics = base.subIndexed<models.Doc>('topics')({
-  src: hl((d: models.Doc) => (typeof d.src === 'string' ? d.src : undefined)),
-  queue: hl((d: models.Doc) => d.queue),
-  related: hl((d: models.Doc) => d.related),
-  mentions: hl((d: models.Doc) => d.mentions),
-  next: hl((d: models.Doc) => (d.next || []).filter(l => l.startsWith('/'))),
-  later: hl((d: models.Doc) => (d.later || []).filter(l => l.startsWith('/'))),
-  list: hl((d: models.Doc) => (d.list || []).filter(l => l.startsWith('/'))),
+  src: hl(d => (typeof d.src === 'string' ? d.src : undefined)),
+  queue: hl(d => d.queue),
+  related: hl(d => d.related),
+  mentions: hl(d => d.mentions),
+  next: hl(d => d.next),
+  later: hl(d => d.later),
+  list: hl(d => d.list),
 });
 
 export const configs = base.sub<any>('configs');

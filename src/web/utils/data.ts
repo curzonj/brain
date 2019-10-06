@@ -186,6 +186,8 @@ async function sync() {
 
   await syncToLevelDB(remoteDb);
   await uploadNotes(remoteDb);
+
+  console.log('sync complete');
 }
 
 async function syncToLevelDB(sourceDb: PouchDB.Database) {
