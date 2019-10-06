@@ -192,12 +192,13 @@ function backgroundSync() {
 
 async function sync() {
   if (!navigator.onLine) {
+    loading.done(true);
     return;
   }
 
   const remoteDb = getRemoteDb();
-
   await syncToLevelDB(remoteDb);
+  loading.done(true);
   await uploadNotes(remoteDb);
 }
 
@@ -213,8 +214,6 @@ async function syncToLevelDB(sourceDb: PouchDB.Database) {
       await updateLevelDB(sourceDb, lastSeq);
     }
   });
-
-  loading.done(true);
 }
 
 async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
