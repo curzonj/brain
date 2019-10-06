@@ -224,41 +224,53 @@ async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
 
 async function updateLevelDB(
   sourceDb: PouchDB.Database,
-  lastSeq: string | number
+  outerLastSeq: string | number
 ): Promise<void> {
-  const { last_seq: resultLastSeq, results } = await sourceDb.changes<
-    models.CouchDocTypes
-  >({
-    include_docs: true,
-    since: lastSeq,
-    limit: 100,
-    batch_size: 100,
-  });
+  const inner = async (lastSeq: string | number) => {
+    const { last_seq: resultLastSeq, results } = await sourceDb.changes<
+      models.CouchDocTypes
+    >({
+      include_docs: true,
+      since: lastSeq,
+      limit: 100,
+      batch_size: 100,
+    });
 
-  if (results.length === 0) {
-    return;
-  }
+    await Promise.all(
+      results.map(async change => {
+        if (change.id.startsWith('$/queue/')) {
+          // TODO currently this means that notes from other devices
+          // won't show up until they get synced on my laptop
+          return;
+        } else if (change.deleted) {
+          await leveldb.topics.del(lastSlashItem(change.id));
+        } else if (change.doc && change.doc.id) {
+          await leveldb.topics.put(lastSlashItem(change.id), stripDoc(
+            change.doc
+          ) as models.Doc);
+        }
+      })
+    );
 
-  await Promise.all(
-    results.map(async change => {
-      if (change.id.startsWith('$/queue/')) {
-        // TODO currently this means that notes from other devices
-        // won't show up until they get synced on my laptop
-        return;
-      } else if (change.deleted) {
-        await leveldb.topics.del(lastSlashItem(change.id));
-      } else if (change.doc && change.doc.id) {
-        await leveldb.topics.put(lastSlashItem(change.id), stripDoc(
-          change.doc
-        ) as models.Doc);
-      }
-    })
-  );
+    await leveldb.configs.put('lastSeq', resultLastSeq);
+    await leveldb.write();
 
-  await leveldb.configs.put('lastSeq', resultLastSeq);
-  await leveldb.write();
+    return { results: results.length, seq: resultLastSeq };
+  };
 
-  return updateLevelDB(sourceDb, resultLastSeq);
+  const following = async ({
+    results,
+    seq,
+  }: {
+    results: number;
+    seq: string | number;
+  }): Promise<void> => {
+    if (results > 0) {
+      return inner(seq).then(following);
+    }
+  };
+
+  return inner(outerLastSeq).then(following);
 }
 
 let remoteDbMemoized: PouchDB.Database;

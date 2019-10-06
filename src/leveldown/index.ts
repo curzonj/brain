@@ -63,13 +63,14 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
   }
 
   async put(key: string, value: V, options?: AbstractOptions) {
+    if (this.indexed) await this.updateIndexes([{ type: 'del', key }]);
     await this.db.put(key, value, options);
     if (this.indexed) await this.updateIndexes([{ type: 'put', key, value }]);
   }
 
   async del(key: string, options?: AbstractOptions) {
-    await this.db.del(key, options);
     if (this.indexed) await this.updateIndexes([{ type: 'del', key }]);
+    await this.db.del(key, options);
   }
 
   async batch(array: AbstractBatch<string, V>[], options?: AbstractOptions) {
@@ -189,7 +190,10 @@ class Index<V> {
   async updateIndex(batches: AbstractBatch<string, V>[]) {
     const indexOps: AbstractBatch<string, string>[][] = await Promise.all(
       batches.map(async b => {
-        const value = b.type === 'put' ? b.value : await this.base.get(b.key);
+        const value =
+          b.type === 'put'
+            ? b.value
+            : await this.base.get(b.key).catch(e => undefined);
         if (value === undefined) {
           return [];
         }

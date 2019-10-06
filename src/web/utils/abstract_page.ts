@@ -37,6 +37,19 @@ export interface Div {
   list?: TextObject[];
 }
 
+export async function getPageTitle(topicId: string): Promise<string> {
+  if (!topicId.startsWith('/')) {
+    topicId = `/${topicId}`;
+  }
+
+  const doc = await getTopic(topicId).catch(e => reportError(e, { topicId }));
+  if (!doc) {
+    return topicId;
+  } else {
+    return deriveTitle(doc);
+  }
+}
+
 export async function buildAbstractPage(
   topicId: string
 ): Promise<AbstractPage> {

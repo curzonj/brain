@@ -34,13 +34,7 @@ export function TopicPage(props: RouteComponentProps<{ topicId: string }>) {
 
       <TopicHeader topicId={topicId} page={page} />
 
-      {page ? (
-        renderSections(page.sections)
-      ) : (
-        <section>
-          <p>Loading...</p>
-        </section>
-      )}
+      {page && renderSections(page.sections)}
     </div>
   );
 }
