@@ -68,7 +68,6 @@
     "blueimp-md5": "^2.10.0",
     "eslint-config-prettier": "^4.2.0",
     "eslint-plugin-prettier": "^3.1.0",
-    "gh-pages": "^2.0.1",
     "level-js": "^4.0.1",
     "level-promise": "^2.1.1",
     "levelup": "^4.1.0",
@@ -90,12 +89,12 @@
     "postpack": "rm -f oclif.manifest.json",
     "prepack": "rm -rf lib && tsc -b && oclif-dev manifest && oclif-dev readme",
     "version": "oclif-dev readme && git add README.md",
-    "lint": "eslint './src/**/*.{ts,tsx}'",
-    "predeploy": "npm run build",
-    "deploy": "echo 'Watch for gpg now...' && gh-pages -d build"
+    "lint": "eslint './src/**/*.{ts,tsx}'"
   },
   "babel": {
-    "plugins": ["emotion"]
+    "plugins": [
+      "emotion"
+    ]
   },
   "browserslist": {
     "production": [
