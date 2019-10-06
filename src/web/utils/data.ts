@@ -164,6 +164,8 @@ export async function uploadNotes(sourceDb: PouchDB.Database) {
       );
     }
   });
+
+  await leveldb.write();
 }
 
 export async function initialize(): Promise<boolean> {
