@@ -20,8 +20,8 @@ export const App: React.FC = () => {
         <Switch>
           <Redirect from="/" to="/index" exact />
           <Route path="/login" component={LoginPage} />
-          <Route path="/add_note/:topicId" component={NotePage} />
-          <Route path="/:topicId" component={TopicPage} />
+          <Route path="/add_note/:topicId+" component={NotePage} />
+          <Route path="/:topicId+" component={TopicPage} />
         </Switch>
       </ScrollToTop>
     </Router>
