@@ -187,7 +187,7 @@ async function buildRelatedDivList(
     }
 
     fieldList.forEach(r => {
-      if (!list.find(li => textObjectString(li) === textObjectString(r))) {
+      if (!list.find(li => textObjectString(li) === textObjectString(r)) && textObjectString(r) !== doc.id) {
         list.push(r);
       }
     });
