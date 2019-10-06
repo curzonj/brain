@@ -175,11 +175,7 @@ function addPatch(
   } else if (models.isLabeledLink(value)) {
     list.push({ op, field, value: value.link });
   } else {
-    throw new ComplexError('unable to generate patch for object', {
-      op,
-      field,
-      value,
-    });
+    console.log("WARNING: Skipping patch for object: ", field, value);
   }
 }
 

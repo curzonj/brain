@@ -353,7 +353,7 @@ export async function buildEditorStructure(): Promise<EditorStructure> {
 }
 
 export function finalizeEditorStructure(rendered: EditorStructure) {
-  timingSync('sortArrayFields', () => sortArrayFields(rendered));
+  //timingSync('sortArrayFields', () => sortArrayFields(rendered));
   timingSync('labelAllRefs', () => labelAllRefs(rendered));
 }
 
