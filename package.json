@@ -84,7 +84,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "env REACT_APP_GIT_SHA=`git rev-parse --short HEAD` react-scripts build",
+    "build": "env REACT_APP_GIT_SHA=`git rev-parse --short HEAD` react-scripts build && cp build/index.html build/404.html",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "postpack": "rm -f oclif.manifest.json",
@@ -92,7 +92,7 @@
     "version": "oclif-dev readme && git add README.md",
     "lint": "eslint './src/**/*.{ts,tsx}'",
     "predeploy": "npm run build",
-    "deploy": "cp build/index.html build/404.html && echo 'Watch for gpg now...' && gh-pages -d build -r https://github.com/curzonj/brain.git"
+    "deploy": "echo 'Watch for gpg now...' && gh-pages -d build"
   },
   "babel": {
     "plugins": ["emotion"]
