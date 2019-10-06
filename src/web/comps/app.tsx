@@ -10,11 +10,13 @@ import { TopicPage } from './topic_page';
 import { NotePage } from './note_page';
 import { LoginPage, LoginRedirector } from './login_page';
 import { ScrollToTop } from './scroll';
+import { LoadingStats } from './loading_stats';
 
 export const App: React.FC = () => {
   return (
     <Router basename={process.env.PUBLIC_URL}>
       <LoginRedirector />
+      <LoadingStats />
 
       <ScrollToTop>
         <Switch>
