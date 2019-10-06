@@ -38,51 +38,46 @@ export interface Div {
   list?: TextObject[];
 }
 
-export async function getPageTitle(topicId: string): Promise<string> {
-  if (!topicId.startsWith('/')) {
-    topicId = `/${topicId}`;
-  }
-
-  const doc = await getTopic(topicId).catch(e => reportError(e, { topicId }));
-  if (!doc) {
-    return topicId;
-  } else {
-    return deriveTitle(doc);
-  }
-}
-
+const sectionFunctions = [
+  todoSection,
+  frontSection,
+  listSections,
+  otherFieldsSection,
+] as ((d: models.Doc) => Section | Section[])[];
 export async function buildAbstractPage(
-  topicId: string
-): Promise<AbstractPage> {
+  topicId: string,
+  cb: (p: AbstractPage) => void
+): Promise<void> {
   if (!topicId.startsWith('/')) {
     topicId = `/${topicId}`;
   }
 
   const doc = await getTopic(topicId).catch(e => reportError(e, { topicId }));
   if (!doc) {
-    return {
+    return cb({
       title: topicId,
       sections: [
         {
           text: 'This page does not have any content yet.',
         },
       ],
-    };
+    });
   }
 
   return annotateErrors({ doc }, async () => {
-    const sections = await Promise.all([
-      todoSection(doc),
-      frontSection(doc),
-      listSections(doc),
-      otherFieldsSection(doc),
-    ]);
-
-    return {
-      title: deriveTitle(doc),
+    const page = {
       breadcrumbs: await breadcrumbs(doc),
-      sections: sections.flat(),
+      title: deriveTitle(doc),
+      sections: [] as Section[],
     };
+    cb(page);
+
+    await sectionFunctions.reduce(async (acc, fn) => {
+      await acc;
+      const sections = [await fn(doc)].flat();
+      sections.forEach(s => page.sections.push(s));
+      cb(page);
+    }, Promise.resolve());
   });
 }
 

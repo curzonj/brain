@@ -71,7 +71,8 @@ export async function addNote(topicId: string, text: string) {
     text: text.trim(),
   } as models.NewNote;
 
-  await notesLevelDB.put(id, payload);
+  await notesLevelDB.put(payload.id, payload);
+  await leveldb.write();
 
   reportError(async () => attemptNoteUpload(payload), {
     file: 'db',
