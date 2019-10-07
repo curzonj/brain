@@ -27,21 +27,17 @@ export interface Section {
   title?: string;
   text?: string;
   src?: any;
-  list?: TextObject[];
   divs?: Div[];
 }
 
 export interface Div {
-  heading: string;
-  list?: TextObject[];
+  heading?: string;
+  list: TextObject[];
 }
 
-const sectionFunctions = [
-  todoSection,
-  frontSection,
-  listSections,
-  otherFieldsSection,
-] as ((d: models.Doc) => Section | Section[])[];
+const sectionFunctions = [frontSection, listSections, otherFieldsSection] as ((
+  d: models.Doc
+) => Section | Section[])[];
 export async function buildAbstractPage(
   topicId: string,
   cb: (p: AbstractPage) => void,
@@ -88,86 +84,76 @@ export async function buildAbstractPage(
     await dataLoading.then(() => buildAbstractPage(topicId, cb, false));
 }
 
-async function todoSection(doc: models.Doc): Promise<Section | never[]> {
-  const divs = await listFieldNameDivs(TodoListFieldNames, doc);
-  if (divs.length === 0) {
-    return [];
-  }
+async function frontSection(doc: models.Doc): Promise<Section | never[]> {
+  const divs = [
+    await maybeListDiv(isFullNodeList(doc.list) ? undefined : doc.list),
+    await listFieldNameDivs(TodoListFieldNames, doc),
+  ].flat();
 
-  return {
-    title: 'TODO',
-    divs,
-  };
-}
-
-async function frontSection(doc: models.Doc) {
-  const { list } = doc;
-  const isShallow = listIsShallow(list);
-
-  if (!doc.text && !isShallow) {
-    return [];
-  }
+  if (!doc.text && divs.length === 0) return [];
 
   return {
     text: doc.text,
     src: doc.src,
-    list: await maybeLabelRefs(isShallow ? undefined : doc.list),
-  } as Section;
+    divs,
+  };
 }
 
 async function listSections(doc: models.Doc): Promise<Section[]> {
-  const { list } = doc;
-  if (!list || listIsShallow(list)) {
+  if (isFullNodeList(doc.list)) {
+    return Promise.all(
+      doc.list.map(async (s: any) => {
+        if (typeof s === 'string' && s.startsWith('/')) {
+          const sectionDoc = await getTopic(s);
+          if (!sectionDoc) {
+            return { text: `Missing ${s}` };
+          }
+          return topicSection(sectionDoc);
+        }
+
+        return {
+          text: s,
+        };
+      })
+    );
+  } else {
     return [];
   }
+}
 
-  return Promise.all(
-    list.map(async (s: any) => {
-      if (typeof s === 'string' && s.startsWith('/')) {
-        const sectionDoc = await getTopic(s);
-        if (!sectionDoc) {
-          return { text: `Missing ${s}` };
-        }
-        return topicSection(sectionDoc);
-      }
-
+async function topicSection(doc: models.Doc) {
+  return annotateErrors(
+    { doc },
+    async (): Promise<Section> => {
       return {
-        text: s,
+        title: deriveTitle(doc),
+        text: doc.text,
+        divs: [
+          await maybeListDiv(doc.list),
+          await listFieldNameDivs(NestedSectionListFieldNames, doc),
+        ].flat(),
       };
-    })
+    }
   );
 }
 
-async function topicSection(doc: models.Doc): Promise<Section> {
-  return annotateErrors({ doc }, async () => {
-    return {
-      title: deriveTitle(doc),
-      text: doc.text,
-      list: await maybeLabelRefs(doc.list),
-      divs: await listFieldNameDivs(NestedSectionListFieldNames, doc),
-    } as Section;
-  });
+async function maybeListDiv(input: undefined | any[]): Promise<Div | never[]> {
+  const list = await maybeLabelRefs(input);
+  return list ? { list } : [];
 }
 
 async function listFieldNameDivs(
   names: string[][],
   doc: models.Doc
 ): Promise<Div[]> {
-  const p = await Promise.all(
+  return (await Promise.all(
     names.map(
-      async ([field, heading]): Promise<Div[]> => {
-        if (!doc[field]) return [];
-        return [
-          {
-            heading,
-            list: await maybeLabelRefs(doc[field] as any[]),
-          },
-        ];
+      async ([field, heading]): Promise<Div | never[]> => {
+        const list = await maybeLabelRefs(doc[field] as any[]);
+        return list ? { heading, list } : [];
       }
     )
-  );
-
-  return p.flat();
+  )).flat();
 }
 
 async function appendQueueToPage(doc: models.Doc) {
@@ -344,10 +330,10 @@ function deriveTitle(n: models.Doc): string {
   return title || 'Note';
 }
 
-function listIsShallow(list: undefined | any[]): boolean {
+function isFullNodeList(list: undefined | string[]): list is string[] {
   return (
     list !== undefined &&
-    list.every(s => typeof s === 'string' && !s.startsWith('/'))
+    list.every(s => typeof s === 'string' && s.startsWith('/'))
   );
 }
 

@@ -187,8 +187,7 @@ export async function initialize(): Promise<boolean> {
 }
 
 function backgroundSync() {
-  if (loading.hasFired())
-    return;
+  if (loading.hasFired()) return;
 
   if (!navigator.onLine) {
     loading.done(true);

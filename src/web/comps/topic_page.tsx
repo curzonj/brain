@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Menu } from './menu';
 import './topic_page.css';
 import { useAbstractPage } from '../utils/abstract_page_react';
-import { AbstractPage, Section } from '../utils/abstract_page';
+import { AbstractPage, Section, Div } from '../utils/abstract_page';
 
 export function TopicHeader(props: { page: AbstractPage }) {
   const { page } = props;
@@ -44,14 +44,13 @@ function renderSections(sections: Section[]) {
       <section key={i}>
         {s.title && <h2 className="title">{s.title}</h2>}
         {s.text && textItem(s, false)}
-        {s.list && simpleList(s.list)}
         {s.divs && sectionDivs(s.divs)}
       </section>
     );
   });
 }
 
-function sectionDivs(divs: any[]) {
+function sectionDivs(divs: Div[]) {
   return divs.map((d, i) => {
     return (
       <div key={i}>
