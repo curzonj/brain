@@ -29,6 +29,8 @@ definitions:
         minItems: 1
         items:
           type: string
+      stale:
+        type: boolean
       links:
         $ref: "#/definitions/linkList"
       src:
@@ -80,6 +82,9 @@ definitions:
         $ref: "#/definitions/slashRefString"
       created_at:
         type: number
+      stale: false
+      stale_at:
+        type: number
       next:
         $ref: "#/definitions/slashRefList"
       later:
@@ -92,6 +97,7 @@ definitions:
         $ref: "#/definitions/slashRefList"
     dependencies:
       text: [created_at]
+      created_at: [text]
   existingDocument:
     allOf:
       - $ref: "#/definitions/couchDocument"

@@ -114,7 +114,7 @@ export function generatePatches(
     throw e;
   }
 
-  if (false && list.length === 0) {
+  if (list.length === 0) {
     throw new ComplexError('failed to generate patches', {
       comparison,
       doc,

@@ -3,6 +3,7 @@ import { deepEqual } from 'fast-equals';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import * as tmp from 'tmp';
+import { pick } from 'lodash';
 
 import { timingAsync, timingSync } from './timing';
 import {
@@ -162,39 +163,51 @@ async function computeDeletions(
 }
 
 async function computeUpdates(
-  content: EditorStructure,
-  newContent: EditorStructure
+  contentList: EditorStructure,
+  newContentList: EditorStructure
 ) {
   const db = await getDB();
 
   return Promise.all(
-    Object.keys(newContent)
-      .filter(k => !content[k] || !deepEqual(content[k], newContent[k]))
+    Object.keys(newContentList)
+      .filter(
+        k => !contentList[k] || !deepEqual(contentList[k], newContentList[k])
+      )
       .map(async k => {
         const slashId = `/${k}`;
         const docId = topicToDocID(slashId);
-        const { _rev, created_at } = await db
+        const oldDoc = await db
           .get(docId)
           .catch(() => ({ created_at: Date.now() }));
 
+        const previousContent = contentList[k] || ({} as EditorDoc);
+        const newContent = newContentList[k];
+
+        // tag: specialAttributes
+        if (oldDoc.stale_at === undefined) {
+          if (newContent.stale === true) newContent.stale_at = Date.now();
+        } else if (oldDoc.stale_at !== undefined) {
+          if (newContent.stale !== true)
+            previousContent.stale_at = oldDoc.stale_at;
+        }
+        delete newContent.stale;
+        delete previousContent.stale;
+
         const newTopicContent = {
-          _id: docId,
-          _rev,
-          created_at,
           id: slashId,
-          ...newContent[k],
+          // tag: specialAttributes
+          ...pick(oldDoc, ['_id', '_rev', 'created_at']),
+          ...newContent,
         } as models.DocUpdate;
 
+        // tag: specialAttributes
         if (!newTopicContent.text) {
           delete newTopicContent.created_at;
         }
 
         const docEntries = [] as models.DocUpdate[];
         unstackNestedDocuments(newTopicContent, docEntries);
-
-        const comparisonDoc = content[k] || ({} as EditorDoc);
-        generatePatches(comparisonDoc, newTopicContent);
-
+        generatePatches(previousContent, newTopicContent);
         docEntries.push(newTopicContent);
 
         return docEntries;
@@ -234,6 +247,7 @@ export function sortedYamlDump(input: object): string {
     sortKeys(a, b) {
       const fieldOrder = [
         'title',
+        'stale',
         'type',
         'link',
         'label',
@@ -287,6 +301,8 @@ export async function buildEditorStructure(): Promise<EditorStructure> {
 
         const id = doc.id.slice(1);
         const shortDoc = models.removeStorageAttributes(doc) as EditorDoc;
+
+        // tag: specialAttributes
         delete shortDoc.created_at;
 
         acc[id] = shortDoc;
@@ -303,65 +319,13 @@ export async function buildEditorStructure(): Promise<EditorStructure> {
 }
 
 export function finalizeEditorStructure(rendered: EditorStructure) {
-  //timingSync('sortArrayFields', () => sortArrayFields(rendered));
-  timingSync('labelAllRefs', () => labelAllRefs(rendered));
-}
-/*
-function docValueString(l: models.EditorArrayItemTypes): string {
-  if (!l) {
-    return 'undefined';
-  }
-
-  if (typeof l === 'string') {
-    return l;
-  }
-
-  if (models.isSearchLink(l)) {
-    return l.search;
-  }
-
-  if (models.isLabeledLink(l)) {
-    return l.link;
-  }
-
-  if (models.isLabeledRef(l)) {
-    return l.ref;
-  }
-
-  return 'unknown';
-}
-
-function sortArrayFields(rendered: EditorStructure) {
   Object.values(rendered).forEach((doc: EditorDoc) => {
-    Object.keys(doc).forEach(k => {
-      const v = doc[k];
+    // tag: specialAttributes
+    if (doc.stale_at !== undefined) {
+      doc.stale = true;
+      delete doc.stale_at;
+    }
 
-      if (Array.isArray(v)) {
-        doc[k] = v.sort(
-          (
-            a: models.EditorArrayItemTypes,
-            b: models.EditorArrayItemTypes
-          ): number => {
-            const an = docValueString(a);
-            const bn = docValueString(b);
-
-            if (an < bn) {
-              return -1;
-            }
-            if (an > bn) {
-              return 1;
-            }
-            return 0;
-          }
-        );
-      }
-    });
-  });
-}
-*/
-
-function labelAllRefs(rendered: EditorStructure) {
-  Object.values(rendered).forEach((doc: EditorDoc) => {
     Object.keys(doc).forEach(k => renderRefsInDoc(rendered, doc, k));
   });
 }

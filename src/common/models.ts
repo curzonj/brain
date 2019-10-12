@@ -10,7 +10,6 @@ export interface Note {
 }
 
 export interface ShortDoc {
-  created_at?: number;
   title?: string;
   text?: string;
   src?: Link;
@@ -29,6 +28,7 @@ export interface ShortDoc {
 export interface Doc extends ShortDoc {
   id: string;
   created_at?: number;
+  stale_at?: number;
   patches?: DocChangeEntry[];
   [key: string]: DocValueTypes;
 }
@@ -83,7 +83,7 @@ export interface LabeledRef {
   ref: string;
 }
 
-export type EditorValueTypes = RegularDocValueTypes | RefList;
+export type EditorValueTypes = RegularDocValueTypes | RefList | boolean;
 export type RefList = MaybeLabeledRef[];
 export type MaybeLabeledRef = string | LabeledRef;
 export type EditorStructure = Record<string, EditorDoc>;
