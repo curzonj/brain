@@ -55,6 +55,7 @@
     "@types/level-js": "^4.0.1",
     "@types/leveldown": "^4.0.0",
     "@types/levelup": "^3.1.1",
+    "@types/lodash": "^4.14.144",
     "@types/memdown": "^3.0.0",
     "@types/morgan": "^1.7.37",
     "@types/n3": "^1.1.0",

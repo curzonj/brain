@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import cuid from 'cuid';
 import { deepEqual } from 'fast-equals';
 import { getDB } from './db';
 import { ComplexError } from '../common/errors';
@@ -9,9 +10,31 @@ import { isValidLiteralType } from '../common/rdf';
 
 const couchDbSchema = schemaSelector('couchTopicUpdate');
 
+export interface AllDocsHash {
+  [key: string]: models.ExistingDoc;
+}
+export async function getAllDocsHash() {
+  const db = await getDB();
+  const { rows } = await db.allDocs<models.ExistingDoc>({
+    include_docs: true,
+    startkey: '$/topics/',
+    endkey: '$/topics/\ufff0',
+  });
+
+  return rows.reduce(
+    (acc, { doc }) => {
+      if (doc) {
+        acc[doc.id] = doc;
+      }
+      return acc;
+    },
+    {} as AllDocsHash
+  );
+}
+
 export async function applyChanges(
   updates: models.DocUpdate[],
-  docsToDelete: models.ExistingDoc[]
+  docsToDelete: models.ExistingDoc[] = []
 ) {
   const deletes = docsToDelete.map(
     d => ({ ...d, _deleted: true } as models.DocUpdate)
@@ -22,7 +45,9 @@ export async function applyChanges(
 
   const db = await getDB();
 
-  await db.bulkDocs(changes);
+  const bulkDocsResult = await db.bulkDocs(changes);
+  console.log(bulkDocsResult.filter(bdRes => !(bdRes as any).ok));
+
   await dumpJSON();
 }
 
@@ -79,7 +104,7 @@ export function topicToDocID(topicID: string): string {
 }
 
 export function generatePatches(
-  comparison: models.EditorDoc,
+  comparison: models.EditorDoc | models.ShortDoc,
   doc: models.DocUpdate
 ) {
   const list = [] as models.DocChangeEntry[];
@@ -90,6 +115,13 @@ export function generatePatches(
   } catch (e) {
     console.log({ comparison, doc });
     throw e;
+  }
+
+  if (list.length === 0) {
+    throw new ComplexError('failed to generate patches', {
+      comparison,
+      doc,
+    });
   }
 
   // This is a bit legacy from when I was type casting the value
@@ -110,8 +142,8 @@ export function generatePatches(
 }
 
 function diffToDocMissingPatches(
-  orig: models.EditorDoc,
-  doc: models.EditorDoc,
+  orig: models.EditorDoc | models.ShortDoc,
+  doc: models.DocUpdate,
   list: models.DocChangeEntry[]
 ) {
   Object.keys(orig).forEach((k: string) => {
@@ -131,8 +163,8 @@ function diffToDocMissingPatches(
 }
 
 function diffToDocChangePatches(
-  orig: models.EditorDoc,
-  doc: models.EditorDoc,
+  orig: models.EditorDoc | models.ShortDoc,
+  doc: models.DocUpdate,
   list: models.DocChangeEntry[]
 ) {
   Object.keys(doc).forEach((k: string) => {
@@ -190,5 +222,39 @@ function findMissingItems<T>(l1: T[], l2: T[]): T[] {
     // Find all the items in l1 where none of the items
     // in l2 match via deepEqual
     return l1.filter((i: T) => !l2.find((l2i: T) => deepEqual(i, l2i)));
+  }
+}
+
+export function unstackNestedDocuments(
+  doc: models.DocUpdate,
+  docEntries: models.DocUpdate[]
+) {
+  if (Array.isArray(doc.queue)) {
+    doc.queue = doc.queue.map(q => {
+      if (q.startsWith && q.startsWith('/')) {
+        return q;
+      }
+
+      const newId = `/${cuid()}`;
+      const newQueueTopic = {
+        _id: topicToDocID(newId),
+        id: newId,
+        related: [doc.id],
+        created_at: Date.now(),
+      } as models.DocUpdate;
+
+      if (q.startsWith) {
+        newQueueTopic.text = q;
+      } else {
+        Object.assign(newQueueTopic, q);
+        unstackNestedDocuments(newQueueTopic, docEntries);
+      }
+
+      generatePatches({}, newQueueTopic);
+
+      docEntries.push(newQueueTopic);
+
+      return newQueueTopic.id;
+    });
   }
 }

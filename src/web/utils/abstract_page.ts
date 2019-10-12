@@ -11,7 +11,6 @@ const NestedSectionListFieldNames = [
   ['next', 'Next'],
   ['later', 'Later'],
   ['related', 'Related'],
-  ['mentions', 'Mentions'],
   ['links', 'Links'],
 ];
 
@@ -19,7 +18,6 @@ const TodoListFieldNames = [['next', 'Next'], ['later', 'Later']];
 
 export interface AbstractPage {
   title: string;
-  breadcrumbs?: any[];
   sections: Section[];
 }
 
@@ -63,7 +61,6 @@ export async function buildAbstractPage(
 
   await annotateErrors({ doc }, async () => {
     const page = {
-      breadcrumbs: await breadcrumbs(doc),
       title: deriveTitle(doc),
       sections: [] as Section[],
     };
@@ -197,7 +194,7 @@ async function buildRelatedDivList(
   }
 
   await Promise.all(
-    ['mentions', 'related', 'queue'].map(async field => {
+    ['related', 'queue'].map(async field => {
       append(await maybeLabelRefs(doc[field] as any));
     })
   );
@@ -315,7 +312,7 @@ async function maybeResolveSrc(src: undefined | models.Link) {
 function deriveTitle(n: models.Doc): string {
   if (!n) return 'Missing Page';
 
-  let title = n.title || n.join;
+  let title = n.title;
 
   if (!title && n.link) {
     if (typeof n.link === 'string') {
@@ -335,17 +332,4 @@ function isFullNodeList(list: undefined | string[]): list is string[] {
     list !== undefined &&
     list.every(s => typeof s === 'string' && s.startsWith('/'))
   );
-}
-
-async function breadcrumbs(doc: models.Doc) {
-  if (!doc.context) return undefined;
-
-  // This dates back to the deeply nested path style keys used
-  // as contexts
-  const fragments: string[] = doc.context.split('/').slice(1);
-  const contextPaths = fragments.map(
-    (fragment, index) => `/${fragments.slice(0, index + 1).join('/')}`
-  );
-
-  return maybeLabelRefs(contextPaths);
 }

@@ -1,12 +1,16 @@
 import { spawn } from 'child_process';
-import cuid from 'cuid';
 import { deepEqual } from 'fast-equals';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import * as tmp from 'tmp';
 
 import { timingAsync, timingSync } from './timing';
-import { applyChanges, topicToDocID, generatePatches } from './content';
+import {
+  applyChanges,
+  topicToDocID,
+  generatePatches,
+  unstackNestedDocuments,
+} from './content';
 import { getDB } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
@@ -211,40 +215,6 @@ export async function applyEditorChanges(
   await applyChanges(updates, deletes);
 }
 
-function unstackNestedDocuments(
-  doc: models.DocUpdate,
-  docEntries: models.DocUpdate[]
-) {
-  if (Array.isArray(doc.queue)) {
-    doc.queue = doc.queue.map(q => {
-      if (q.startsWith && q.startsWith('/')) {
-        return q;
-      }
-
-      const newId = `/${cuid()}`;
-      const newQueueTopic = {
-        _id: topicToDocID(newId),
-        id: newId,
-        context: doc.id,
-        created_at: Date.now(),
-      } as models.DocUpdate;
-
-      if (q.startsWith) {
-        newQueueTopic.text = q;
-      } else {
-        Object.assign(newQueueTopic, q);
-        unstackNestedDocuments(newQueueTopic, docEntries);
-      }
-
-      generatePatches({}, newQueueTopic);
-
-      docEntries.push(newQueueTopic);
-
-      return newQueueTopic.id;
-    });
-  }
-}
-
 function findErrors(doc: EditorStructure) {
   if (!editorSchema(doc)) {
     return editorSchema.errors;
@@ -281,7 +251,6 @@ export function sortedYamlDump(input: object): string {
   return yaml.safeDump(input, {
     sortKeys(a, b) {
       const fieldOrder = [
-        'context',
         'title',
         'type',
         'link',
@@ -294,7 +263,6 @@ export function sortedYamlDump(input: object): string {
         'next',
         'later',
         'related',
-        'mentions',
         'links',
         'list',
         'embedded',
@@ -437,8 +405,7 @@ function renderRefsInDoc(docs: EditorStructure, doc: EditorDoc, k: string) {
             };
           }
           return {
-            label:
-              otherDoc.title || otherDoc.join || otherDoc.text || otherDoc.link,
+            label: otherDoc.title || otherDoc.text || otherDoc.link,
             ref: v,
           } as LabeledRef;
         }

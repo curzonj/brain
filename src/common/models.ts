@@ -12,27 +12,24 @@ export interface Note {
 export interface ShortDoc {
   created_at?: number;
   title?: string;
-  join?: string;
   text?: string;
   src?: Link;
   link?: Link;
-  context?: string;
   topic_id?: string;
   queue?: string[];
   related?: string[];
-  mentions?: string[];
   next?: string[];
   later?: string[];
   list?: string[];
   links?: LinkList;
   props?: DumbProps;
-  patches?: DocChangeEntry[];
   [key: string]: DocValueTypes;
 }
 
 export interface Doc extends ShortDoc {
   id: string;
   created_at?: number;
+  patches?: DocChangeEntry[];
   [key: string]: DocValueTypes;
 }
 

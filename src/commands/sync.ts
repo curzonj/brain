@@ -135,7 +135,7 @@ function pushQueueTopicUpdates(
   const newTopic = {
     _id: topicToDocID(id),
     id,
-    context: topicId,
+    related: [topicId],
     text,
     created_at,
   } as models.DocUpdate;

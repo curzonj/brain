@@ -26,7 +26,6 @@ export const topics = base.subIndexed<models.Doc>('topics')({
   src: hl(d => (typeof d.src === 'string' ? d.src : undefined)),
   queue: hl(d => d.queue),
   related: hl(d => d.related),
-  mentions: hl(d => d.mentions),
   next: hl(d => d.next),
   later: hl(d => d.later),
   list: hl(d => d.list),

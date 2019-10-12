@@ -9,9 +9,7 @@ definitions:
     type: object
     additionalProperties: false
     anyOf: &editorNodeAnyOf
-      - oneOf:
-          - required: [title]
-          - required: [join]
+      - required: [title]
       - required: [text]
       - required: [link]
     properties: &editorNodeProperties
@@ -21,10 +19,6 @@ definitions:
       link:
         type: string
         format: uri
-      context:
-        $ref: "#/definitions/slashRefString"
-      join:
-        $ref: "#/definitions/slashRefString"
       aka:
         type: array
         uniqueItems: true
@@ -46,9 +40,6 @@ definitions:
       list:
         $ref: "#/definitions/objRefStringList"
       related:
-        $ref: "#/definitions/objRefList"
-      mentions:
-        # TODO computed "mentioned". If a non-parent nests a topic, include that non-parent in the mentioned list of the nested topic when it's not being rendered on that page
         $ref: "#/definitions/objRefList"
       queue:
         $ref: "#/definitions/objRefListInput"
@@ -93,9 +84,6 @@ definitions:
           list:
             $ref: "#/definitions/stringList"
           related:
-            $ref: "#/definitions/slashRefList"
-          mentions:
-            # TODO computed "mentioned". If a non-parent nests a topic, include that non-parent in the mentioned list of the nested topic when it's not being rendered on that page
             $ref: "#/definitions/slashRefList"
           queue:
             $ref: "#/definitions/slashRefList"

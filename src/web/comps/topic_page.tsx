@@ -11,7 +11,6 @@ export function TopicHeader(props: { page: AbstractPage }) {
 
   return (
     <div className="header">
-      {page && <Breadcrumbs breadcrumbs={page.breadcrumbs} />}
       <h1 className="title">{page.title}</h1>
     </div>
   );
@@ -69,10 +68,6 @@ function simpleList(list: any[]) {
       ))}
     </ul>
   );
-}
-
-function Breadcrumbs(props: { breadcrumbs: undefined | any[] }) {
-  return <></>;
 }
 
 function textItem(item: any, showMore: boolean = true) {
