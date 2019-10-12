@@ -1,6 +1,6 @@
 import { Command } from '@oclif/command';
 import { schemaSelector } from '../cli/schema';
-import { getAllDocsHash } from '../cli/content';
+import { getAllDocsHash, findMissingReferences } from '../cli/content';
 
 const couchDbSchema = schemaSelector('existingDocument');
 
@@ -17,6 +17,9 @@ class AuditCommand extends Command {
         counter = counter + 1;
       }
     }
+
+    const missingRefs = findMissingReferences(allDocs);
+    if (missingRefs.length > 0) console.dir({ missingRefs });
 
     console.log(`${counter} documents failed the audit`);
   }

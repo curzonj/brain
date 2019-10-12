@@ -10,9 +10,6 @@ import { isValidLiteralType } from '../common/rdf';
 
 const couchDbSchema = schemaSelector('couchTopicUpdate');
 
-export interface AllDocsHash {
-  [key: string]: models.ExistingDoc;
-}
 export async function getAllDocsHash() {
   const db = await getDB();
   const { rows } = await db.allDocs<models.ExistingDoc>({
@@ -28,7 +25,7 @@ export async function getAllDocsHash() {
       }
       return acc;
     },
-    {} as AllDocsHash
+    {} as models.AllDocsHash
   );
 }
 
@@ -87,13 +84,13 @@ export async function dumpJSON() {
   );
 }
 
-export function topicToDocID(topicID: string): string {
-  function hash(s: string): string {
-    const h = crypto.createHash('md5');
-    h.update(s);
-    return h.digest('hex');
-  }
+export function hash(s: string): string {
+  const h = crypto.createHash('md5');
+  h.update(s);
+  return h.digest('hex');
+}
 
+export function topicToDocID(topicID: string): string {
   if (!topicID.startsWith('/')) {
     throw new ComplexError('invalid topicID', {
       topicID,
@@ -117,7 +114,7 @@ export function generatePatches(
     throw e;
   }
 
-  if (list.length === 0) {
+  if (false && list.length === 0) {
     throw new ComplexError('failed to generate patches', {
       comparison,
       doc,
@@ -260,4 +257,23 @@ export function unstackNestedDocuments(
   }
 
   ['queue', 'next', 'later', 'list', 'related'].forEach(inner);
+}
+
+export function findMissingReferences(
+  allDocs: models.EditorStructure | models.AllDocsHash
+) {
+  return Object.values(allDocs).flatMap(topic =>
+    Object.keys(topic).flatMap(k => {
+      if (k === 'links') {
+        return [];
+      }
+      if (k === 'props') {
+        return [];
+      }
+      const value = [topic[k]].flat();
+      return value
+        .filter(s => s.startsWith && s.startsWith('/'))
+        .filter(s => !(allDocs[s] || allDocs[s.slice(1)]));
+    })
+  );
 }

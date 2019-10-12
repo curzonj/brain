@@ -10,6 +10,7 @@ import {
   topicToDocID,
   generatePatches,
   unstackNestedDocuments,
+  findMissingReferences,
 } from './content';
 import { getDB } from './db';
 import { ComplexError } from '../common/errors';
@@ -220,31 +221,12 @@ function findErrors(doc: EditorStructure) {
     return editorSchema.errors;
   }
 
-  const missing = findMissing(doc);
+  const missing = findMissingReferences(doc);
   if (missing.length > 0) {
     return [{ missing }];
   }
 
   return undefined;
-}
-
-function findMissing(doc: EditorStructure) {
-  return Object.keys(doc).flatMap(topicKey => {
-    const topic = doc[topicKey];
-
-    return Object.keys(topic).flatMap(k => {
-      if (k === 'links') {
-        return [];
-      }
-      if (k === 'props') {
-        return [];
-      }
-      const value = [topic[k]].flat();
-      return value
-        .filter(s => s.startsWith && s.startsWith('/'))
-        .filter(s => !doc[s.slice(1)]);
-    });
-  });
 }
 
 export function sortedYamlDump(input: object): string {

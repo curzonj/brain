@@ -87,6 +87,7 @@ export type EditorValueTypes = RegularDocValueTypes | RefList;
 export type RefList = MaybeLabeledRef[];
 export type MaybeLabeledRef = string | LabeledRef;
 export type EditorStructure = Record<string, EditorDoc>;
+export type AllDocsHash = Record<string, ExistingDoc>;
 
 export const StorageFields = ['_rev', '_id', '_deleted', 'id', 'patches'];
 export function removeStorageAttributes(
