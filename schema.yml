@@ -8,10 +8,14 @@ definitions:
   editorNode:
     type: object
     additionalProperties: false
-    anyOf: &editorNodeAnyOf
-      - required: [title]
-      - required: [text]
-      - required: [link]
+    allOf: &editorNodeAllOf
+      - anyOf:
+          - required: [title]
+          - required: [text]
+          - required: [link]
+      - anyOf:
+          - required: [title]
+          - required: [related]
     properties: &editorNodeProperties
       title:
         type: string
@@ -34,61 +38,70 @@ definitions:
       props:
         $ref: "#/definitions/props"
       next:
-        $ref: "#/definitions/objRefStringList"
+        $ref: "#/definitions/objRefListInput"
       later:
-        $ref: "#/definitions/objRefStringList"
+        $ref: "#/definitions/objRefListInput"
       list:
-        $ref: "#/definitions/objRefStringList"
+        $ref: "#/definitions/objRefListInput"
       related:
-        $ref: "#/definitions/objRefList"
+        $ref: "#/definitions/objRefListInput"
       queue:
         $ref: "#/definitions/objRefListInput"
+  couchDeletion:
+    type: object
+    required:
+      - _id
+      - _rev
+      - _deleted
+    properties:
+      _deleted:
+        type: boolean
+        enum: [true]
+      _id:
+        type: string
+      _rev:
+        type: string
+  couchDocument:
+    type: object
+    additionalProperties: false
+    allOf: *editorNodeAllOf
+    required:
+      - _id
+      - id
+    properties:
+      <<: *editorNodeProperties
+      _id:
+        type: string
+      _rev:
+        type: string
+      patches:
+        $ref: "#/definitions/patches"
+      id:
+        $ref: "#/definitions/slashRefString"
+      created_at:
+        type: number
+      next:
+        $ref: "#/definitions/slashRefList"
+      later:
+        $ref: "#/definitions/slashRefList"
+      list:
+        $ref: "#/definitions/slashRefList"
+      related:
+        $ref: "#/definitions/slashRefList"
+      queue:
+        $ref: "#/definitions/slashRefList"
+    dependencies:
+      text: [created_at]
+  existingDocument:
+    allOf:
+      - $ref: "#/definitions/couchDocument"
+      - required: [_rev]
   couchTopicUpdate:
     oneOf:
-      - type: object
-        required:
-          - _id
-          - _rev
-          - _deleted
-        properties:
-          _deleted:
-            type: boolean
-            enum: [true]
-          _id:
-            type: string
-          _rev:
-            type: string
-      - type: object
-        additionalProperties: false
-        anyOf: *editorNodeAnyOf
-        required:
-          - _id
-          - id
-          - patches
-        properties:
-          <<: *editorNodeProperties
-          _id:
-            type: string
-          _rev:
-            type: string
-          patches:
-            $ref: "#/definitions/patches"
-          id:
-            $ref: "#/definitions/slashRefString"
-          created_at:
-            type: number
-          next:
-            $ref: "#/definitions/stringList"
-          later:
-            $ref: "#/definitions/stringList"
-          list:
-            $ref: "#/definitions/stringList"
-          related:
-            $ref: "#/definitions/slashRefList"
-          queue:
-            $ref: "#/definitions/slashRefList"
-        dependencies:
-          text: [created_at]
+      - $ref: "#/definitions/couchDeletion"
+      - allOf:
+          - $ref: "#/definitions/couchDocument"
+          - required: [patches]
   objRefStringList:
     type: array
     uniqueItems: true

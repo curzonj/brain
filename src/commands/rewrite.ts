@@ -22,37 +22,35 @@ class RewriteCommand extends Command {
     const modified: models.DocUpdate[] = [];
 
     for (let doc of Object.values(allDocs)) {
-      const theClone = cloneDeep(doc);
-      delete theClone.patches;
+      delete doc.patches;
+      const result = rewriter(cloneDeep(doc), allDocs, doc);
 
-      const result = rewriter(theClone, allDocs);
-
-      if (
-        Array.isArray(result) ||
-        (result && result !== doc && !deepEqual(doc, result))
-      ) {
-        if (!Array.isArray(result) && !result.patches) {
-          generatePatches(doc, result);
-        }
-
-        const flatResult = [result].flat();
-        flatResult.forEach(r => {
-          if (!couchDbSchema(r)) {
-            console.log(
-              JSON.stringify(
-                { doc, result, errors: couchDbSchema.errors },
-                null,
-                ' '
-              )
-            );
-
-            if (!flagArgs.force) {
-              return;
-            }
-          }
-          modified.push(r);
-        });
+      if (!result) continue;
+      if (Array.isArray(result)) {
+        if (result.length === 0) continue;
+      } else if (result === doc || deepEqual(doc, result)) {
+        continue;
+      } else if (!result.patches) {
+        generatePatches(doc, result);
       }
+
+      const flatResult = [result].flat();
+      flatResult.forEach(r => {
+        if (!couchDbSchema(r)) {
+          console.log(
+            JSON.stringify(
+              { doc, result, errors: couchDbSchema.errors },
+              null,
+              ' '
+            )
+          );
+
+          if (!flagArgs.force) {
+            return;
+          }
+        }
+        modified.push(r);
+      });
     }
 
     if (modified.length === 0) {

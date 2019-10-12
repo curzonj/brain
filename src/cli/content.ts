@@ -61,8 +61,8 @@ function validateUpdates(updates: models.DocUpdate[]) {
   });
 
   errors.forEach(e => {
-    console.log(e.update);
-    console.log(e.errors);
+    console.dir(e.update);
+    console.dir(e.errors);
   });
 
   if (errors.length > 0) {
@@ -229,32 +229,35 @@ export function unstackNestedDocuments(
   doc: models.DocUpdate,
   docEntries: models.DocUpdate[]
 ) {
-  if (Array.isArray(doc.queue)) {
-    doc.queue = doc.queue.map(q => {
-      if (q.startsWith && q.startsWith('/')) {
-        return q;
-      }
+  function inner(field: string) {
+    const list: any = doc[field];
+    if (!Array.isArray(list)) return;
+
+    doc[field] = list.map((item: any) => {
+      if (typeof item === 'string' && item.startsWith('/')) return item;
 
       const newId = `/${cuid()}`;
-      const newQueueTopic = {
+      const newTopic = {
         _id: topicToDocID(newId),
         id: newId,
         related: [doc.id],
         created_at: Date.now(),
       } as models.DocUpdate;
 
-      if (q.startsWith) {
-        newQueueTopic.text = q;
+      if (typeof item === 'string') {
+        newTopic.text = item;
       } else {
-        Object.assign(newQueueTopic, q);
-        unstackNestedDocuments(newQueueTopic, docEntries);
+        Object.assign(newTopic, item);
+        unstackNestedDocuments(newTopic, docEntries);
       }
 
-      generatePatches({}, newQueueTopic);
+      generatePatches({}, newTopic);
 
-      docEntries.push(newQueueTopic);
+      docEntries.push(newTopic);
 
-      return newQueueTopic.id;
+      return newTopic.id;
     });
   }
+
+  ['queue', 'next', 'later', 'list', 'related'].forEach(inner);
 }
