@@ -11,6 +11,12 @@ interface RewriterSet {
 }
 
 export const rewriters: RewriterSet = {
+  reconcileCreatedAt(doc) {
+    if (doc.created_at && doc.text === undefined) {
+      delete doc.created_at;
+      return doc;
+    }
+  },
   removeIdSlashes(doc) {
     function replace(item: string) {
       if (!item.startsWith('/')) return item;
