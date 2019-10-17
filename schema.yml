@@ -96,6 +96,8 @@ definitions:
         $ref: "#/definitions/slashRefList"
       related:
         $ref: "#/definitions/slashRefList"
+      backrefs: false
+      notes: false
     dependencies:
       text: [created_at]
       created_at: [text]
