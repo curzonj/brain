@@ -6,7 +6,6 @@ import { getDB } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
 import { schemaSelector } from './schema';
-import { isValidLiteralType } from '../common/rdf';
 
 const couchDbSchema = schemaSelector('couchTopicUpdate');
 
@@ -100,119 +99,11 @@ export function topicToDocID(topicID: string): string {
   return `$/topics/${hash(topicID)}`;
 }
 
-export function generatePatches(
-  comparison: models.EditorDoc | models.ShortDoc,
-  doc: models.DocUpdate
-) {
-  const list = [] as models.DocChangeEntry[];
-
-  try {
-    diffToDocMissingPatches(comparison, doc, list);
-    diffToDocChangePatches(comparison, doc, list);
-  } catch (e) {
-    console.log({ comparison, doc });
-    throw e;
-  }
-
-  if (list.length === 0) {
-    throw new ComplexError('failed to generate patches', {
-      comparison,
-      doc,
-    });
-  }
-
-  // This is a bit legacy from when I was type casting the value
-  // and it violated type safety
-  const invalid = list.filter(
-    e =>
-      !e.value || (typeof e.value !== 'string' && typeof e.value !== 'number')
-  );
-  if (invalid.length > 0) {
-    throw new ComplexError('generated invalid patches', {
-      comparison,
-      doc,
-      invalid,
-    });
-  }
-
-  doc.patches = list;
-}
-
-function diffToDocMissingPatches(
-  orig: models.EditorDoc | models.ShortDoc,
-  doc: models.DocUpdate,
-  list: models.DocChangeEntry[]
-) {
-  Object.keys(orig).forEach((k: string) => {
-    if (!doc[k]) {
-      const value = orig[k] as models.RegularDocValueTypes;
-      if (models.isPatches(k, value) || models.isStorageField(k)) {
-        return;
-      } else if (models.isDocArrayField(k, value)) {
-        value.forEach((v: models.Link) => {
-          addPatch(list, 'remove', k, v);
-        });
-      } else {
-        addPatch(list, 'remove', k, value);
-      }
-    }
-  });
-}
-
-function diffToDocChangePatches(
-  orig: models.EditorDoc | models.ShortDoc,
-  doc: models.DocUpdate,
-  list: models.DocChangeEntry[]
-) {
-  Object.keys(doc).forEach((k: string) => {
-    if (models.isStorageField(k)) {
-      return;
-    }
-
-    const origValue = orig[k] as models.RegularDocValueTypes;
-    const newValue = doc[k] as models.RegularDocValueTypes;
-
-    if (
-      Array.isArray(newValue) &&
-      (Array.isArray(origValue) || origValue === undefined)
-    ) {
-      findMissingItems(origValue || [], newValue).forEach(v =>
-        addPatch(list, 'remove', k, v)
-      );
-      findMissingItems(newValue, origValue || []).forEach(v =>
-        addPatch(list, 'add', k, v)
-      );
-    } else if (origValue !== newValue) {
-      addPatch(list, 'remove', k, origValue);
-      addPatch(list, 'add', k, newValue);
-    }
-  });
-}
-
-function addPatch(
-  list: models.DocChangeEntry[],
-  op: 'add' | 'remove',
-  field: string,
-  value: undefined | models.RegularDocValueTypes
-) {
-  if (value === undefined) {
-    return;
-  }
-
-  if (isValidLiteralType(value)) {
-    list.push({ op, field, value });
-  } else if (models.isLabeledLink(value)) {
-    list.push({ op, field, value: value.link });
-  } else {
-    console.log('WARNING: Skipping patch for object: ', field, value);
-  }
-}
-
 function isAllStrings(list: any[]): list is string[] {
   return list.every(i => typeof i === 'string');
 }
 
-function findMissingItems<T>(l1: T[], l2: T[]): T[] {
+export function findMissingItems<T>(l1: T[], l2: T[]): T[] {
   if (isAllStrings(l1) && isAllStrings(l2)) {
     return l1.filter((i: T) => l2.indexOf(i) === -1);
   } else {
@@ -247,8 +138,6 @@ export function unstackNestedDocuments(
         Object.assign(newTopic, item);
         unstackNestedDocuments(newTopic, docEntries);
       }
-
-      generatePatches({}, newTopic);
 
       docEntries.push(newTopic);
 

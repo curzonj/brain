@@ -9,7 +9,6 @@ import { timingAsync, timingSync } from './timing';
 import {
   applyChanges,
   topicToDocID,
-  generatePatches,
   unstackNestedDocuments,
   findMissingReferences,
 } from './content';
@@ -108,7 +107,7 @@ function onEditorExit(
 }
 
 function isRefList(k: string, v: EditorValueTypes): v is RefList {
-  return k !== 'links' && k !== 'patches' && Array.isArray(v);
+  return k !== 'links' && Array.isArray(v);
 }
 
 function isRefObject(v: MaybeLabeledRef): v is LabeledRef {
@@ -207,7 +206,6 @@ async function computeUpdates(
 
         const docEntries = [] as models.DocUpdate[];
         unstackNestedDocuments(newTopicContent, docEntries);
-        generatePatches(previousContent, newTopicContent);
         docEntries.push(newTopicContent);
 
         return docEntries;

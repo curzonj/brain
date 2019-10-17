@@ -8,6 +8,6 @@ require('@oclif/command').run()
   }
 
   console.log("\n!! Error:\n")
-  console.log(e)
+  console.dir(e)
   require('@oclif/errors/handle')(e)
 });

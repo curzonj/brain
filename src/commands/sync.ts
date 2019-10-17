@@ -1,12 +1,7 @@
 import { Command } from '@oclif/command';
 import cuid from 'cuid';
 
-import {
-  applyChanges,
-  dumpJSON,
-  topicToDocID,
-  generatePatches,
-} from '../cli/content';
+import { applyChanges, dumpJSON, topicToDocID } from '../cli/content';
 import { getDB, remote } from '../cli/db';
 import * as models from '../common/models';
 import { groupBy } from '../cli/groupBy';
@@ -100,13 +95,10 @@ function pushQueueTopicUpdates(
   }
 
   let listField: ArrayAcceptsStrings;
-  let fieldName: string;
   if (text.startsWith('http')) {
     id = text;
-    fieldName = 'links';
     listField = topic.links = topic.links || ([] as models.LinkList);
   } else {
-    fieldName = 'queue';
     listField = topic.queue = topic.queue || ([] as string[]);
   }
 
@@ -115,18 +107,6 @@ function pushQueueTopicUpdates(
   }
 
   listField.unshift(id);
-
-  // We can't use generatePatches here because then we'd
-  // have to deep clone the topic before adding to it's array.
-  // This is just easier for now
-  if (!topic.patches) {
-    topic.patches = [];
-  }
-  topic.patches.push({
-    op: 'add',
-    field: fieldName,
-    value: id,
-  });
 
   if (text.startsWith('http')) {
     return;
@@ -140,6 +120,5 @@ function pushQueueTopicUpdates(
     created_at,
   } as models.DocUpdate;
 
-  generatePatches({}, newTopic);
   newDocs.push(newTopic);
 }

@@ -1,5 +1,4 @@
 import PouchDB from 'pouchdb';
-import { StringQuad, ValidLiteralType } from './rdf';
 
 export interface Note {
   id: string;
@@ -29,7 +28,6 @@ export interface Doc extends ShortDoc {
   id: string;
   created_at?: number;
   stale_at?: number;
-  patches?: DocChangeEntry[];
   [key: string]: DocValueTypes;
 }
 
@@ -37,12 +35,6 @@ export interface DumbProps {
   quanity?: string;
   author?: string;
   [key: string]: string | undefined;
-}
-
-export interface DocChangeEntry {
-  op: 'add' | 'remove';
-  field: string;
-  value: ValidLiteralType;
 }
 
 export type LinkList = Link[];
@@ -56,7 +48,7 @@ export interface LabeledLink {
 }
 export type EditorArrayItemTypes = Link | MaybeLabeledRef;
 export type DocArrayValueTypes = string[] | LinkList;
-export type RegularDocValueTypes =
+export type DocValueTypes =
   | string[]
   | string
   | number
@@ -64,12 +56,10 @@ export type RegularDocValueTypes =
   | Link
   | LinkList
   | DumbProps;
-export type DocValueTypes = RegularDocValueTypes | DocChangeEntry[];
 
 export type ExistingDoc = PouchDB.Core.ExistingDocument<Doc>;
 export type DocUpdate = PouchDB.Core.PutDocument<Doc> & PouchDB.Core.IdMeta;
-export type RdfDoc = StringQuad;
-export type CouchDocTypes = Doc | RdfDoc | Note;
+export type CouchDocTypes = Doc | Note;
 export type NewNote = PouchDB.Core.PutDocument<Note>;
 
 export interface EditorDoc {
@@ -83,13 +73,13 @@ export interface LabeledRef {
   ref: string;
 }
 
-export type EditorValueTypes = RegularDocValueTypes | RefList | boolean;
+export type EditorValueTypes = DocValueTypes | RefList | boolean;
 export type RefList = MaybeLabeledRef[];
 export type MaybeLabeledRef = string | LabeledRef;
 export type EditorStructure = Record<string, EditorDoc>;
 export type AllDocsHash = Record<string, ExistingDoc>;
 
-export const StorageFields = ['_rev', '_id', '_deleted', 'id', 'patches'];
+export const StorageFields = ['_rev', '_id', '_deleted', 'id'];
 export function removeStorageAttributes(
   doc: ExistingDoc | DocUpdate
 ): ShortDoc {
@@ -106,15 +96,11 @@ export function isStorageField(k: string) {
   return StorageFields.indexOf(k) > -1;
 }
 
-export function isPatches(k: string, v: DocValueTypes): v is DocChangeEntry[] {
-  return Array.isArray(v) && k === 'patches';
-}
-
 export function isDocArrayField(
   k: string,
   v: DocValueTypes
 ): v is DocArrayValueTypes {
-  return Array.isArray(v) && k !== 'patches';
+  return Array.isArray(v);
 }
 
 export function isLabeledRef(l: any): l is LabeledRef {

@@ -153,45 +153,6 @@ export function graphTrie(quads: (Quad | StringQuad)[]): GraphTrie {
   return trie;
 }
 
-export async function mirrorChangesToRDF(changes: models.DocUpdate[]) {
-  const ops = changesToQuadOps(changes);
-  await executeQuadOps(ops);
-
-  const match = await tuplesMatchDocs();
-  if (!match) {
-    console.log('WARNING !! Tuple docs do NOT match the topic docs');
-  }
-}
-
-function changesToQuadOps(changes: models.DocUpdate[]): QuadOp[] {
-  return changes.flatMap((orig: models.DocUpdate): QuadOp[] => {
-    // because these operations delete attributes from the objects
-    // passed to them
-    const change = { ...orig } as models.DocUpdate;
-
-    if (change._deleted) {
-      // The caller will have to handle consistency checks before this call because
-      // there is no reverse indexed datastore currently
-      return deleteTuplesMatchingChange(change);
-    } else if (change.patches) {
-      const tuples = change.patches.map(p => updateTuplesFromChange(change, p));
-
-      // This is a new doc
-      if (!change._rev) {
-        appendNewDocTuples(change).forEach(q => {
-          tuples.push({ op: 'add', q });
-        });
-      }
-
-      return tuples;
-    }
-
-    throw new ComplexError('doc update missing patches and _deleted', {
-      change,
-    });
-  });
-}
-
 export async function executeQuadOps(list: QuadOp[]) {
   await list.reduce(async (acc: Promise<void>, qop: QuadOp): Promise<void> => {
     await acc;
@@ -202,32 +163,6 @@ export async function executeQuadOps(list: QuadOp[]) {
       await deleteQuad(qop.q);
     }
   }, Promise.resolve());
-}
-
-function deleteTuplesMatchingChange(change: models.DocUpdate): QuadOp[] {
-  return topicDocToTuples(change, [] as Quad[]).map(q => ({
-    op: 'remove',
-    q,
-  }));
-}
-
-function updateTuplesFromChange(
-  change: models.DocUpdate,
-  p: models.DocChangeEntry
-): QuadOp {
-  const { op, field, value } = p;
-
-  if (isValidLiteralType(value)) {
-    return {
-      op,
-      q: quad(refToNode(change.id), prefix.s(field), quadObject(value)),
-    };
-  }
-
-  throw new ComplexError('unsupported patch value type', {
-    change,
-    p,
-  });
 }
 
 async function bufferStream(readStream: RDF.Stream): Promise<N3.N3Store> {
