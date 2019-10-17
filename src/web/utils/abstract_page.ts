@@ -105,7 +105,7 @@ async function listSections(doc: models.Doc): Promise<Section[]> {
           if (!sectionDoc) {
             return { text: `Missing ${s}` };
           }
-          return topicSection(sectionDoc);
+          return topicSection(sectionDoc, s => s === doc.id);
         }
 
         return {
@@ -118,7 +118,7 @@ async function listSections(doc: models.Doc): Promise<Section[]> {
   }
 }
 
-async function topicSection(doc: models.Doc) {
+async function topicSection(doc: models.Doc, context: LinkSilencer) {
   return annotateErrors(
     { doc },
     async (): Promise<Section> => {
@@ -127,7 +127,7 @@ async function topicSection(doc: models.Doc) {
         text: doc.text,
         divs: [
           await maybeListDiv(doc.list),
-          await listFieldNameDivs(NestedSectionListFieldNames, doc),
+          await listFieldNameDivs(NestedSectionListFieldNames, doc, context),
         ].flat(),
       };
     }
@@ -141,12 +141,13 @@ async function maybeListDiv(input: undefined | any[]): Promise<Div | never[]> {
 
 async function listFieldNameDivs(
   names: string[][],
-  doc: models.Doc
+  doc: models.Doc,
+  context?: LinkSilencer
 ): Promise<Div[]> {
   return (await Promise.all(
     names.map(
       async ([field, heading]): Promise<Div | never[]> => {
-        const list = await maybeLabelRefs(doc[field] as any[]);
+        const list = await maybeLabelRefs(doc[field] as any[], context);
         return list ? { heading, list } : [];
       }
     )
@@ -241,21 +242,29 @@ async function otherFieldsSection(doc: models.Doc) {
   return { divs };
 }
 
+type LinkSilencer = (s: string) => boolean;
 async function maybeLabelRefs(
-  list: undefined | any[]
+  list: undefined | any[],
+  silencer?: LinkSilencer
 ): Promise<undefined | TextObject[]> {
   if (!list || list.length === 0) return;
 
-  return Promise.all(
+  const ret = (await Promise.all(
     list.map(async v => {
       // v could be an object from links
       if (typeof v === 'string' && v.startsWith('/')) {
+        if (silencer && silencer(v)) {
+          return [];
+        }
+
         return refToTextObject(v);
       }
 
       return v;
     })
-  );
+  )).flat();
+
+  if (ret.length > 0) return ret;
 }
 
 async function refToTextObject(topicId: string): Promise<TextObject> {
