@@ -1,43 +1,54 @@
-import { deepEqual } from 'fast-equals';
 import * as models from '../common/models';
+import { ReverseMap, buildReverseMappings } from './content';
 
 type Rewriter = (
   d: models.DocUpdate,
-  docs: models.AllDocsHash,
-  original: models.ExistingDoc
+  opts: SetupObject
 ) => models.DocUpdate[] | models.DocUpdate | undefined;
 interface RewriterSet {
   [key: string]: Rewriter;
 }
 
-export const rewriters: RewriterSet = {
-  uniqueRelated(doc, allDocs) {
-    if (!doc.related) return;
-    if (!doc.next && !doc.list && !doc.later) return;
-    const newRelated = doc.related.filter(id => {
-      if (
-        ['list', 'next', 'later'].some(
-          f => doc[f] && (doc[f] as string[]).indexOf(id) > -1
-        )
-      )
-        return false;
-      return true;
-    });
+export interface SetupObject {
+  allDocs: models.AllDocsHash;
+  reverse: ReverseMap;
+}
+export async function setupRewriters(
+  allDocs: models.AllDocsHash
+): Promise<SetupObject> {
+  return {
+    allDocs,
+    reverse: buildReverseMappings(allDocs),
+  };
+}
 
-    if (doc.id === '/568a081ac19e58cab5e82fcb50f399d6') {
-      console.dir(doc.related);
-      console.dir(newRelated);
-    }
-    if (deepEqual(doc.related.sort(), newRelated.sort())) return;
-
-    doc.related = newRelated;
-    return doc;
-  },
-};
+export const rewriters: RewriterSet = {};
 
 /*
  * The fields are gone now so these don't compile, but they are good reference material
  *
+uniqueRelated(doc, allDocs) {
+  if (!doc.related) return;
+  if (!doc.next && !doc.list && !doc.later) return;
+  const newRelated = doc.related.filter(id => {
+    if (
+      ['list', 'next', 'later'].some(
+        f => doc[f] && (doc[f] as string[]).indexOf(id) > -1
+      )
+    )
+      return false;
+    return true;
+  });
+
+  if (doc.id === '/568a081ac19e58cab5e82fcb50f399d6') {
+    console.dir(doc.related);
+    console.dir(newRelated);
+  }
+  if (deepEqual(doc.related.sort(), newRelated.sort())) return;
+
+  doc.related = newRelated;
+  return doc;
+},
 fixQueues(doc, allDocs) {
   if (doc.stale_at !== undefined || !doc.text || !doc.related) return;
   const newRelated = [

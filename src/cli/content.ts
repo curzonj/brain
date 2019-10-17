@@ -1,7 +1,6 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import cuid from 'cuid';
-import { deepEqual } from 'fast-equals';
 import { getDB } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
@@ -99,20 +98,6 @@ export function topicToDocID(topicID: string): string {
   return `$/topics/${hash(topicID)}`;
 }
 
-function isAllStrings(list: any[]): list is string[] {
-  return list.every(i => typeof i === 'string');
-}
-
-export function findMissingItems<T>(l1: T[], l2: T[]): T[] {
-  if (isAllStrings(l1) && isAllStrings(l2)) {
-    return l1.filter((i: T) => l2.indexOf(i) === -1);
-  } else {
-    // Find all the items in l1 where none of the items
-    // in l2 match via deepEqual
-    return l1.filter((i: T) => !l2.find((l2i: T) => deepEqual(i, l2i)));
-  }
-}
-
 export function unstackNestedDocuments(
   doc: models.DocUpdate,
   docEntries: models.DocUpdate[]
@@ -145,7 +130,7 @@ export function unstackNestedDocuments(
     });
   }
 
-  ['queue', 'next', 'later', 'list', 'related'].forEach(inner);
+  ['notes', 'next', 'later', 'list', 'related'].forEach(inner);
 }
 
 export function findMissingReferences(
@@ -167,10 +152,11 @@ export function findMissingReferences(
   );
 }
 
-export function buildReverseMappings(allDocs: models.AllDocsHash) {
-  const reverse = {} as Record<string, models.Doc[]>;
+export type ReverseMap = Record<string, models.Doc[]>;
+export function buildReverseMappings(allDocs: models.AllDocsHash): ReverseMap {
+  const reverse = {} as ReverseMap;
   function append(id: any, doc: models.Doc) {
-    if (typeof id === 'string' && id.startsWith('/')) {
+    if (typeof id === 'string' && id.startsWith('/') && id !== doc.id) {
       reverse[id] = reverse[id] || [];
       reverse[id].push(doc);
     }
@@ -188,4 +174,31 @@ export function buildReverseMappings(allDocs: models.AllDocsHash) {
   );
 
   return reverse;
+}
+
+export function findDoubledRelations(allDocs: models.AllDocsHash) {
+  const reverse = {} as ReverseMap;
+  function append(id: any, doc: models.Doc) {
+    if (typeof id === 'string' && id.startsWith('/') && id !== doc.id) {
+      reverse[id] = reverse[id] || [];
+      reverse[id].push(doc);
+    }
+  }
+
+  Object.values(allDocs).forEach(doc =>
+    (doc.related || []).forEach(k => {
+      const field = doc[k];
+      if (Array.isArray(field)) {
+        field.forEach(f => append(f, doc));
+      } else {
+        append(field, doc);
+      }
+    })
+  );
+
+  return Object.keys(reverse).flatMap(k =>
+    reverse[k]
+      .filter(doc2 => (reverse[doc2.id] || []).find(doc3 => doc3.id === k))
+      .map(doc2 => ({ k, k2: doc2.id }))
+  );
 }

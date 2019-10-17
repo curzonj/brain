@@ -6,6 +6,9 @@ export interface Note {
   created_at: number;
   seq: number | string;
   topic_id: string;
+  related: string[];
+  title: undefined;
+  src: undefined;
 }
 
 export interface ShortDoc {
@@ -14,7 +17,7 @@ export interface ShortDoc {
   src?: Link;
   link?: Link;
   topic_id?: string;
-  queue?: string[];
+  queue?: never;
   related?: string[];
   next?: string[];
   later?: string[];
@@ -66,6 +69,7 @@ export interface EditorDoc {
   text?: string;
   links?: LinkList;
   notes?: RefList;
+  related?: RefList;
   backrefs?: RefList;
   [key: string]: EditorValueTypes;
 }

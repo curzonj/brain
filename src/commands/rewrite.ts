@@ -5,7 +5,7 @@ import { deepEqual } from 'fast-equals';
 import { schemaSelector } from '../cli/schema';
 import { applyChanges, getAllDocsHash } from '../cli/content';
 import * as models from '../common/models';
-import { rewriters } from '../cli/rewriters';
+import { setupRewriters, rewriters } from '../cli/rewriters';
 
 const couchDbSchema = schemaSelector('couchTopicUpdate');
 
@@ -19,10 +19,11 @@ class RewriteCommand extends Command {
     }
 
     const allDocs = await getAllDocsHash();
+    const opts = await setupRewriters(allDocs);
     const modified: models.DocUpdate[] = [];
 
     for (let doc of Object.values(allDocs)) {
-      const result = rewriter(cloneDeep(doc), allDocs, doc);
+      const result = rewriter(cloneDeep(doc), opts);
 
       if (!result) continue;
       if (Array.isArray(result)) {

@@ -162,54 +162,112 @@ async function computeDeletions(
   );
 }
 
+function isAllStrings(list: any[]): list is string[] {
+  return list.every(i => typeof i === 'string');
+}
+
+function findMissingItems<T>(l1: T[], l2: T[]): T[] {
+  if (isAllStrings(l1) && isAllStrings(l2)) {
+    return l1.filter((i: T) => l2.indexOf(i) === -1);
+  } else {
+    // Find all the items in l1 where none of the items
+    // in l2 match via deepEqual
+    return l1.filter((i: T) => !l2.find((l2i: T) => deepEqual(i, l2i)));
+  }
+}
+
 async function computeUpdates(
   contentList: EditorStructure,
   newContentList: EditorStructure
 ) {
   const db = await getDB();
-
-  return Promise.all(
-    Object.keys(newContentList)
-      .filter(
-        k => !contentList[k] || !deepEqual(contentList[k], newContentList[k])
-      )
-      .map(async k => {
-        const slashId = `/${k}`;
-        const docId = topicToDocID(slashId);
-        const oldDoc = await db
-          .get(docId)
-          .catch(() => ({ created_at: Date.now() }));
-
-        const newContent = newContentList[k];
-
-        // tag: specialAttributes
-        if (oldDoc.stale_at === undefined && newContent.stale === true)
-          newContent.stale_at = Date.now();
-        delete newContent.stale;
-
-        // tag: specialAttributes
-        delete newContent.notes;
-        delete newContent.backrefs;
-
-        const newTopicContent = {
-          id: slashId,
-          // tag: specialAttributes
-          ...pick(oldDoc, ['_id', '_rev', 'created_at']),
-          ...newContent,
-        } as models.DocUpdate;
-
-        // tag: specialAttributes
-        if (!newTopicContent.text) {
-          delete newTopicContent.created_at;
-        }
-
-        const docEntries = [] as models.DocUpdate[];
-        unstackNestedDocuments(newTopicContent, docEntries);
-        docEntries.push(newTopicContent);
-
-        return docEntries;
-      })
+  const changedKeys = Object.keys(newContentList).filter(
+    k => !contentList[k] || !deepEqual(contentList[k], newContentList[k])
   );
+
+  // tag: specialAttributes
+  changedKeys.forEach(k => {
+    const newTopicContent = newContentList[k];
+    if (!newTopicContent.notes) return;
+
+    const previousContent = contentList[k];
+    const justRefs = newTopicContent.notes.filter(
+      n => typeof n === 'string' && n.startsWith('/')
+    ) as string[];
+    const added = findMissingItems<string>(
+      justRefs,
+      (previousContent.notes as string[]) || []
+    );
+    const removed = findMissingItems<string>(
+      (previousContent.notes as string[]) || [],
+      justRefs
+    );
+
+    // For each note added to this topic, add this topic to the note's related list
+    added.forEach(id => {
+      const target = newContentList[id.slice(1)];
+      if (target) {
+        target.related = target.related || [];
+        target.related.push(`/${k}`);
+      } else {
+        // this ensures that the findMissingReferences checker will pick this up
+        (newTopicContent.related = newTopicContent.related || []).push(
+          `/${id}`
+        );
+        return;
+      }
+    });
+
+    // For each note removed from this topic, remove this topic from the note's related list
+    removed.forEach(id => {
+      const target = newContentList[id.slice(1)];
+      if (!target) return;
+      target.related = (target.related || []).filter(ref => ref !== `/${k}`);
+      if (target.related.length === 0) delete target.related;
+    });
+  });
+
+  return (await Promise.all(
+    changedKeys.map(async k => {
+      const slashId = `/${k}`;
+      const docId = topicToDocID(slashId);
+      const oldDoc = await db
+        .get(docId)
+        .catch(() => ({ _id: docId, created_at: Date.now() }));
+
+      const newContent = newContentList[k];
+
+      // tag: specialAttributes
+      if (oldDoc.stale_at === undefined && newContent.stale === true)
+        newContent.stale_at = Date.now();
+      delete newContent.stale;
+
+      // tag: specialAttributes
+      delete newContent.backrefs;
+
+      const newTopicContent = {
+        id: slashId,
+        // tag: specialAttributes
+        ...pick(oldDoc, ['_id', '_rev', 'created_at']),
+        ...newContent,
+      } as models.DocUpdate;
+
+      // tag: specialAttributes
+      if (!newTopicContent.text) {
+        delete newTopicContent.created_at;
+      }
+
+      const docEntries = [] as models.DocUpdate[];
+      unstackNestedDocuments(newTopicContent, docEntries);
+
+      // tag: specialAttributes
+      delete newTopicContent.notes;
+
+      docEntries.push(newTopicContent);
+
+      return docEntries;
+    })
+  )).flat();
 }
 
 export async function applyEditorChanges(
@@ -220,8 +278,7 @@ export async function applyEditorChanges(
   sanitizeRewrites(content);
 
   const deletes = await computeDeletions(content, newContent);
-  const nestedUpdates = await computeUpdates(content, newContent);
-  const updates: models.DocUpdate[] = nestedUpdates.flat();
+  const updates = await computeUpdates(content, newContent);
 
   await applyChanges(updates, deletes);
 }
@@ -256,10 +313,10 @@ export function sortedYamlDump(input: object): string {
         'next',
         'later',
         'related',
+        'backrefs',
         'links',
         'list',
-        'embedded',
-        'queue',
+        'notes',
       ];
 
       for (const name of fieldOrder) {

@@ -154,87 +154,58 @@ async function listFieldNameDivs(
   )).flat();
 }
 
-async function appendQueueToPage(doc: models.Doc) {
-  const notes = await getNotes(doc.id);
-  if (notes.length === 0) {
-    return;
-  }
-
-  notes.forEach(item => {
-    doc.queue = doc.queue || [];
-    doc.queue.unshift(item);
-  });
-}
-
-function textObjectString(to: TextObject): string {
-  if (typeof to === 'string') {
-    return to;
-  } else {
-    return to.ref;
-  }
-}
-
 async function buildRelatedDivList(
   doc: models.Doc
-): Promise<{ related: TextObject[]; queue: TextObject[] }> {
-  const list: TextObject[] = [];
+): Promise<{ related: TextObject[]; notes: TextObject[] }> {
+  const list = [await getNotes(doc.id), await getReverseMappings(doc.id)]
+    .flat()
+    .filter(t => t.stale_at === undefined);
 
-  function append(fieldList: TextObject[] | undefined) {
-    if (!fieldList) {
-      return;
-    }
+  const notes: TextObject[] = await Promise.all(
+    list
+      .filter(t => t.title === undefined)
+      .sort((a, b) => {
+        if (!a.created_at || !b.created_at)
+          throw new Error('note missing created_at during sort');
+        if (a.created_at > b.created_at) return -1;
+        if (a.created_at < b.created_at) return 1;
+        return 0;
+      })
+      .map(topicToTextObject)
+  );
 
-    fieldList.forEach(r => {
-      if (
-        !list.find(li => textObjectString(li) === textObjectString(r)) &&
-        textObjectString(r) !== doc.id
-      ) {
-        list.push(r);
+  // TODO Don't put things in here that are in the todo lists or the
+  // actual related list
+  let related: TextObject[] = await Promise.all(
+    list.filter(t => t.title !== undefined).map(topicToTextObject)
+  );
+
+  if (doc.related) {
+    (await Promise.all(doc.related.map(refToTextObject))).forEach(to => {
+      if (!related.some(rto => rto.ref === to.ref)) {
+        related.push(to);
       }
     });
   }
 
-  await Promise.all(
-    ['related', 'queue'].map(async field => {
-      append(await maybeLabelRefs(doc[field] as any));
-    })
-  );
-
-  await getReverseMappings(doc.id).then(async list =>
-    append(await Promise.all(list.map(topicToTextObject)))
-  );
-
-  function textObjectSorter(a: TextObject, b: TextObject) {
-    const aS = textObjectString(a);
-    const bS = textObjectString(b);
-    if (aS < bS) {
-      return -1;
-    }
-    if (aS > bS) {
-      return 1;
-    }
+  related = related.sort((a, b) => {
+    if (!a.ref) return -1;
+    if (!b.ref) return 1;
+    if (a.ref < b.ref) return -1;
+    if (a.ref > b.ref) return 1;
     return 0;
-  }
+  });
 
-  const queue = list.filter(
-    t => typeof t === 'string' || (t as any).text !== undefined
-  );
-  const related = list
-    .filter(t => typeof t !== 'string' && (t as any).text === undefined)
-    .sort(textObjectSorter);
-
-  return { related, queue };
+  return { related, notes };
 }
 
 async function otherFieldsSection(doc: models.Doc) {
-  await appendQueueToPage(doc);
-
-  const { related, queue } = await buildRelatedDivList(doc);
+  const { related, notes } = await buildRelatedDivList(doc);
   const links = await maybeLabelRefs(doc.links);
   const divs = [
     { heading: 'Related', list: related },
     { heading: 'Links', list: links },
-    { heading: 'Queue', list: queue },
+    { heading: 'Notes', list: notes },
   ].filter(d => d.list && d.list.length > 0);
 
   if (divs.length === 0) return [];
@@ -270,25 +241,30 @@ async function maybeLabelRefs(
 async function refToTextObject(topicId: string): Promise<TextObject> {
   const topic = await getTopic(topicId);
   if (!topic) {
-    return `Missing ${topicId}`;
+    return { text: `Missing ${topicId}` };
   } else {
     return topicToTextObject(topic);
   }
 }
 
-type TextObject =
-  | { ref: string; label?: string; text?: string; src?: any }
-  | string;
-async function topicToTextObject(topic: models.Doc): Promise<TextObject> {
+interface TextObject {
+  ref?: string;
+  label?: string;
+  text?: string;
+  src?: any;
+}
+async function topicToTextObject(
+  topic: models.Note | models.Doc
+): Promise<TextObject> {
   if (topic.title) {
     return {
       ref: topic.id,
-      label: deriveTitle(topic),
+      label: deriveTitle(topic as models.Doc),
     };
   } else if (!topic.text) {
     return {
       ref: topic.id,
-      label: deriveTitle(topic),
+      label: deriveTitle(topic as models.Doc),
     };
   } else {
     return {

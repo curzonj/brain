@@ -84,41 +84,32 @@ function pushQueueTopicUpdates(
     return;
   }
 
-  if (!id) {
-    id = `/${cuid()}`;
-  }
-  if (!id.startsWith('/')) {
-    id = `/${id}`;
-  }
-  if (!created_at) {
-    created_at = Date.now();
-  }
-
-  let listField: ArrayAcceptsStrings;
   if (text.startsWith('http')) {
-    id = text;
-    listField = topic.links = topic.links || ([] as models.LinkList);
+    const links = (topic.links = topic.links || ([] as models.LinkList));
+    if (links.indexOf(text) > -1) {
+      return;
+    }
+
+    links.unshift(text);
   } else {
-    listField = topic.queue = topic.queue || ([] as string[]);
+    if (!id) {
+      id = `/${cuid()}`;
+    }
+    if (!id.startsWith('/')) {
+      id = `/${id}`;
+    }
+    if (!created_at) {
+      created_at = Date.now();
+    }
+
+    const newTopic = {
+      _id: topicToDocID(id),
+      id,
+      related: [topicId],
+      text,
+      created_at,
+    } as models.DocUpdate;
+
+    newDocs.push(newTopic);
   }
-
-  if (listField.indexOf(id) > -1) {
-    return;
-  }
-
-  listField.unshift(id);
-
-  if (text.startsWith('http')) {
-    return;
-  }
-
-  const newTopic = {
-    _id: topicToDocID(id),
-    id,
-    related: [topicId],
-    text,
-    created_at,
-  } as models.DocUpdate;
-
-  newDocs.push(newTopic);
 }

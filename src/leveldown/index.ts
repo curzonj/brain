@@ -101,7 +101,7 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
     return new LevelWrapper<VS, {}>(sublevel<VS, string>(this.db, name), {});
   }
 
-  async getAll(options: AbstractIteratorOptions): Promise<V[]> {
+  async getAll(options: AbstractIteratorOptions = {}): Promise<V[]> {
     const list = [] as V[];
 
     await this.forEach(options, (k, v) => {

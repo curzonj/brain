@@ -36,27 +36,9 @@ export async function getTopic(topicKey: string): Promise<models.Doc | void> {
   });
 }
 
-export async function getNotes(topicId: string): Promise<string[]> {
-  const list = [] as string[];
+export async function getNotes(topicId: string): Promise<models.Note[]> {
   const notesLevelDB = leveldb.notes.sub(topicId);
-
-  // merely by returning the entire list here, unsaved notes
-  // would gain the more link, but if you were to add a note
-  // onto that unsaved note, the sync would break
-  await notesLevelDB.forEach({}, (k, value) => {
-    if (!value.text) {
-      throw new ComplexError(
-        'note in the datastore is missing the text field',
-        {
-          key: k,
-          value,
-        }
-      );
-    }
-    list.push(value.text);
-  });
-
-  return list;
+  return notesLevelDB.getAll();
 }
 
 export async function addNote(topicId: string, text: string) {
@@ -73,6 +55,7 @@ export async function addNote(topicId: string, text: string) {
   const payload = {
     _id: `$/queue/${topicId}/${id}`,
     topic_id: topicId,
+    related: [topicId],
     seq: lastSeq,
     created_at: Date.now(),
     id: `/${id}`,
@@ -81,10 +64,13 @@ export async function addNote(topicId: string, text: string) {
 
   await notesLevelDB.put(payload.id, payload, { writeBatch: true });
 
-  reportError(async () => attemptNoteUpload(payload), {
-    file: 'db',
-    fn: 'attemptNoteUpload',
-  });
+  if (navigator.onLine) {
+    const remoteDb = getRemoteDb();
+    reportError(async () => attemptNoteUpload(payload, remoteDb), {
+      file: 'db',
+      fn: 'attemptNoteUpload',
+    });
+  }
 }
 export function configure(value: string) {
   JSON.parse(value);
@@ -117,7 +103,7 @@ async function isConfigured(): Promise<boolean> {
 
 export async function uploadNotes(sourceDb: PouchDB.Database) {
   await leveldb.notes.forEach({}, async (k, doc) => {
-    const docId = doc._id;
+    const docId = doc.text.startsWith('http') ? doc._id : topicToDocID(doc.id);
 
     if (docId === undefined) {
       return reportError(new Error('doc is missing _id'), {
@@ -141,12 +127,7 @@ export async function uploadNotes(sourceDb: PouchDB.Database) {
         }
 
         if (e.reason === 'deleted') {
-          // the translation between these IDs and couchdb is a
-          // little broken so it's easier to just delete them from levelDB
-          // when they are deleted from couchdb
-          const topicNotes = leveldb.notes.sub(doc.topic_id);
-          await topicNotes.del(doc.id);
-
+          await leveldb.notes.sub(doc.topic_id).del(doc.id);
           return e;
         }
 
@@ -162,13 +143,7 @@ export async function uploadNotes(sourceDb: PouchDB.Database) {
         existing,
       });
     } else {
-      await sourceDb.put(doc).catch(e =>
-        reportError(e, {
-          file: 'db',
-          fn: 'uploadNotes',
-          doc,
-        })
-      );
+      await attemptNoteUpload(doc, sourceDb);
     }
   });
 
@@ -331,13 +306,27 @@ async function getLastSeq(): Promise<number | string | undefined> {
   return leveldb.configs.get('lastSeq').catch((err: Error) => undefined);
 }
 
-async function attemptNoteUpload(note: models.Note) {
-  if (!navigator.onLine) {
-    return;
-  }
+async function attemptNoteUpload(
+  note: models.Note,
+  sourceDb: PouchDB.Database
+) {
+  const { id, text, topic_id, created_at } = note;
 
-  const remoteDb = getRemoteDb();
-  await remoteDb.put(note);
+  if (text.startsWith('http')) {
+    await sourceDb.put(note);
+  } else {
+    const topicDoc = {
+      _id: topicToDocID(id),
+      id,
+      related: [topic_id],
+      text,
+      created_at,
+    } as models.DocUpdate;
+    await sourceDb.put(topicDoc); /// remove index from the related of any note that has another related
+    await leveldb.topics.put(lastSlashItem(topicDoc._id), stripDoc(topicDoc));
+    await leveldb.notes.sub(topic_id).del(id);
+    await leveldb.write();
+  }
 }
 
 function lastSlashItem(docId: string) {
@@ -348,9 +337,19 @@ function reverseSlashes(v: string) {
   return v.split('/').reverse();
 }
 
-function stripDoc<D extends {}>(doc: PouchDB.Core.ExistingDocument<D>): D {
+function stripDoc<D extends {}>(doc: PouchDB.Core.PutDocument<D>): D {
   delete doc._id;
   delete doc._rev;
 
   return doc;
+}
+
+function topicToDocID(topicID: string): string {
+  if (!topicID.startsWith('/')) {
+    throw new ComplexError('invalid topicID', {
+      topicID,
+    });
+  }
+
+  return `$/topics/${leveldb.hash(topicID)}`;
 }
