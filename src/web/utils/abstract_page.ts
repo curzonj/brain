@@ -181,7 +181,7 @@ async function buildRelatedDivList(
   );
 
   if (doc.related) {
-    (await Promise.all(doc.related.map(refToTextObject))).forEach(to => {
+    (await Promise.all(doc.related.map(refToTextObject))).flat().forEach(to => {
       if (!related.some(rto => rto.ref === to.ref)) {
         related.push(to);
       }
@@ -238,10 +238,12 @@ async function maybeLabelRefs(
   if (ret.length > 0) return ret;
 }
 
-async function refToTextObject(topicId: string): Promise<TextObject> {
+async function refToTextObject(topicId: string): Promise<TextObject | never[]> {
   const topic = await getTopic(topicId);
   if (!topic) {
     return { text: `Missing ${topicId}` };
+  } else if (topic.stale_at) {
+    return [];
   } else {
     return topicToTextObject(topic);
   }
