@@ -108,6 +108,7 @@ export function unstackNestedDocuments(
 
     doc[field] = list.map((item: any) => {
       if (typeof item === 'string' && item.startsWith('/')) return item;
+      if (item.ref && item.label) return item.ref;
 
       const newId = `/${cuid()}`;
       const newTopic = {
@@ -122,6 +123,11 @@ export function unstackNestedDocuments(
       } else {
         Object.assign(newTopic, item);
         unstackNestedDocuments(newTopic, docEntries);
+      }
+
+      // tag: specialAttributes
+      if (!newTopic.text) {
+        delete newTopic.created_at;
       }
 
       docEntries.push(newTopic);
