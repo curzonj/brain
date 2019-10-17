@@ -5,12 +5,13 @@ import * as yaml from 'js-yaml';
 import * as tmp from 'tmp';
 import { pick } from 'lodash';
 
-import { timingAsync, timingSync } from './timing';
 import {
   applyChanges,
   topicToDocID,
   unstackNestedDocuments,
   findMissingReferences,
+  getAllDocsHash,
+  buildReverseMappings,
 } from './content';
 import { getDB } from './db';
 import { ComplexError } from '../common/errors';
@@ -179,18 +180,16 @@ async function computeUpdates(
           .get(docId)
           .catch(() => ({ created_at: Date.now() }));
 
-        const previousContent = contentList[k] || ({} as EditorDoc);
         const newContent = newContentList[k];
 
         // tag: specialAttributes
-        if (oldDoc.stale_at === undefined) {
-          if (newContent.stale === true) newContent.stale_at = Date.now();
-        } else if (oldDoc.stale_at !== undefined) {
-          if (newContent.stale !== true)
-            previousContent.stale_at = oldDoc.stale_at;
-        }
+        if (oldDoc.stale_at === undefined && newContent.stale === true)
+          newContent.stale_at = Date.now();
         delete newContent.stale;
-        delete previousContent.stale;
+
+        // tag: specialAttributes
+        delete newContent.notes;
+        delete newContent.backrefs;
 
         const newTopicContent = {
           id: slashId,
@@ -280,38 +279,77 @@ export function sortedYamlDump(input: object): string {
   });
 }
 
-export async function buildEditorStructure(): Promise<EditorStructure> {
-  const db = await timingAsync('getDB', () => getDB());
-  const { rows } = await timingAsync('allDocs(topics)', () =>
-    db.allDocs<models.ExistingDoc>({
-      include_docs: true,
-      startkey: '$/topics/',
-      endkey: '$/topics/\ufff0',
-    })
+function buildSortedReverseMappings(
+  allDocs: models.AllDocsHash
+): Record<string, { notes?: string[]; backrefs?: string[] }> {
+  const reverse = buildReverseMappings(allDocs);
+  return Object.fromEntries(
+    Object.entries(reverse)
+      .map(
+        ([referencedId, list]) =>
+          [
+            referencedId,
+            list.filter(
+              referencingDoc =>
+                !referencingDoc.stale_at &&
+                // This removes any backrefs that are already included in some list field of the referenced doc
+                (!reverse[referencingDoc.id] ||
+                  !reverse[referencingDoc.id].some(d => d.id === referencedId))
+            ),
+          ] as [string, models.Doc[]]
+      )
+      .map(([k, v]) => {
+        const notes = v
+          .filter(d => d.title === undefined)
+          .sort((a, b) => {
+            if (!a.created_at || !b.created_at) return 0;
+            if (a.created_at > b.created_at) return -1;
+            if (a.created_at < b.created_at) return 1;
+            return 0;
+          })
+          .map(d => d.id);
+        const backrefs = v
+          .filter(d => d.title !== undefined)
+          .map(d => d.id)
+          .sort();
+
+        const ret = {} as any;
+        if (notes.length > 0) ret.notes = notes;
+        if (backrefs.length > 0) ret.backrefs = backrefs;
+
+        return [k, ret];
+      })
   );
+}
 
-  const rendered = timingSync('removeStorageAttributesLoop', () =>
-    rows.reduce(
-      (acc, { doc }) => {
-        if (!doc) {
-          return acc;
-        }
+export async function buildEditorStructure(): Promise<EditorStructure> {
+  const allDocs = await getAllDocsHash();
+  const allMappings = buildSortedReverseMappings(allDocs);
+  const rendered = Object.values(allDocs).reduce(
+    (acc, doc) => {
+      const id = doc.id.slice(1);
+      const shortDoc = models.removeStorageAttributes(doc) as EditorDoc;
 
-        const id = doc.id.slice(1);
-        const shortDoc = models.removeStorageAttributes(doc) as EditorDoc;
+      // tag: specialAttributes
+      delete shortDoc.created_at;
 
-        // tag: specialAttributes
-        delete shortDoc.created_at;
+      // tag: specialAttributes
+      const backrefs = allMappings[doc.id];
+      if (backrefs) Object.assign(shortDoc, backrefs);
 
-        acc[id] = shortDoc;
+      acc[id] = shortDoc;
 
-        return acc;
-      },
-      {} as Record<string, EditorDoc>
-    )
+      return acc;
+    },
+    {} as Record<string, EditorDoc>
   );
 
   finalizeEditorStructure(rendered);
+
+  if (!editorSchema(rendered)) {
+    console.dir(editorSchema.errors);
+    throw new Error('rendered content for editor is invalid');
+  }
 
   return rendered;
 }
@@ -336,6 +374,10 @@ function renderRefsInDoc(docs: EditorStructure, doc: EditorDoc, k: string) {
       (v: MaybeLabeledRef): MaybeLabeledRef => {
         if (isRefObject(v)) {
           return v;
+        } else if (typeof v !== 'string') {
+          throw new ComplexError('invalid ref', {
+            v,
+          });
         } else if (!v.startsWith('/')) {
           // Not all items in lists are refs
           return v;

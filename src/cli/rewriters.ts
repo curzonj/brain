@@ -1,6 +1,5 @@
 import { deepEqual } from 'fast-equals';
 import * as models from '../common/models';
-import { hash, topicToDocID } from './content';
 
 type Rewriter = (
   d: models.DocUpdate,
@@ -12,9 +11,26 @@ interface RewriterSet {
 }
 
 export const rewriters: RewriterSet = {
-  remove(doc) {
-    delete doc.patches;
-    delete doc.queue;
+  uniqueRelated(doc, allDocs) {
+    if (!doc.related) return;
+    if (!doc.next && !doc.list && !doc.later) return;
+    const newRelated = doc.related.filter(id => {
+      if (
+        ['list', 'next', 'later'].some(
+          f => doc[f] && (doc[f] as string[]).indexOf(id) > -1
+        )
+      )
+        return false;
+      return true;
+    });
+
+    if (doc.id === '/568a081ac19e58cab5e82fcb50f399d6') {
+      console.dir(doc.related);
+      console.dir(newRelated);
+    }
+    if (deepEqual(doc.related.sort(), newRelated.sort())) return;
+
+    doc.related = newRelated;
     return doc;
   },
 };

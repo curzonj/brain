@@ -47,7 +47,12 @@ definitions:
         $ref: "#/definitions/objRefListInput"
       related:
         $ref: "#/definitions/objRefListInput"
-      queue:
+      backrefs:
+        type: array
+        minItems: 1
+        items:
+          $ref: "#/definitions/objLabeledRef"
+      notes:
         $ref: "#/definitions/objRefListInput"
   couchDeletion:
     type: object

@@ -166,3 +166,26 @@ export function findMissingReferences(
     })
   );
 }
+
+export function buildReverseMappings(allDocs: models.AllDocsHash) {
+  const reverse = {} as Record<string, models.Doc[]>;
+  function append(id: any, doc: models.Doc) {
+    if (typeof id === 'string' && id.startsWith('/')) {
+      reverse[id] = reverse[id] || [];
+      reverse[id].push(doc);
+    }
+  }
+
+  Object.values(allDocs).forEach(doc =>
+    Object.keys(doc).forEach(k => {
+      const field = doc[k];
+      if (Array.isArray(field)) {
+        field.forEach(f => append(f, doc));
+      } else {
+        append(field, doc);
+      }
+    })
+  );
+
+  return reverse;
+}

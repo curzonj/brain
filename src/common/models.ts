@@ -65,6 +65,8 @@ export type NewNote = PouchDB.Core.PutDocument<Note>;
 export interface EditorDoc {
   text?: string;
   links?: LinkList;
+  notes?: RefList;
+  backrefs?: RefList;
   [key: string]: EditorValueTypes;
 }
 
