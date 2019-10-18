@@ -38,14 +38,6 @@ async function importQueues(): Promise<void> {
     .map(r => r.doc)
     .filter((doc): doc is models.ExistingDoc => !!doc);
 
-  // The queue items used to be uploaded incorrectly which causes problems for
-  // the applyChanges code.
-  docs.forEach(d => {
-    if (!d.id.startsWith('/')) {
-      d.id = `/${d.id}`;
-    }
-  });
-
   const updates = await Promise.all(
     groupBy(docs, (d: models.ExistingDoc) => d.topic_id).map(
       async ([id, list]: [string, models.ExistingDoc[]]) =>
@@ -85,18 +77,18 @@ function pushQueueTopicUpdates(
   }
 
   if (text.startsWith('http')) {
-    const links = (topic.links = topic.links || ([] as models.LinkList));
+    const links = (topic.links = topic.links || ([] as models.Link[]));
     if (links.indexOf(text) > -1) {
       return;
     }
 
     links.unshift(text);
   } else {
+    console.error(`WARNING: ${id} on ${topicId} was not inserted directly`);
     if (!id) {
-      id = `/${cuid()}`;
-    }
-    if (!id.startsWith('/')) {
-      id = `/${id}`;
+      id = cuid();
+    } else if (id.startsWith('/')) {
+      id = id.slice(1);
     }
     if (!created_at) {
       created_at = Date.now();
@@ -105,7 +97,7 @@ function pushQueueTopicUpdates(
     const newTopic = {
       _id: topicToDocID(id),
       id,
-      related: [topicId],
+      broader: [{ ref: topicId }],
       text,
       created_at,
     } as models.DocUpdate;

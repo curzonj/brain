@@ -1,5 +1,6 @@
 import * as models from '../common/models';
-import { ReverseMap, buildReverseMappings } from './content';
+import { topicToDocID, ReverseMap, buildReverseMappings } from './content';
+import { omit } from 'lodash';
 
 type Rewriter = (
   d: models.DocUpdate,
@@ -22,11 +23,100 @@ export async function setupRewriters(
   };
 }
 
-export const rewriters: RewriterSet = {};
+export const rewriters: RewriterSet = {
+  resetID(doc) {
+    const expected = topicToDocID(doc.id);
+    if (doc._id === expected) return;
+    return [
+      { ...omit(doc, ['_id', '_rev']), _id: expected } as models.DocUpdate,
+      { ...doc, _deleted: true },
+    ];
+  },
+  stripSlashes(doc) {
+    Object.keys(doc).forEach((k: string) => {
+      const value = doc[k];
+      if (!value) return;
+      if (typeof value === 'string') {
+        if (value.startsWith('/')) doc[k] = value.slice(1);
+      } else if (models.isRef(value) && value.ref.startsWith('/')) {
+        doc[k] = { ref: value.ref.slice(1) };
+      } else if (Array.isArray(value)) {
+        doc[k] = (value as any[]).map((v: any) => {
+          if (typeof v === 'string' && v.startsWith('/')) {
+            return v.slice(1);
+          } else if (models.isRef(v) && v.ref.startsWith('/')) {
+            return { ref: v.ref.slice(1) };
+          } else {
+            return v;
+          }
+        });
+      }
+    });
+
+    return doc;
+  },
+};
 
 /*
  * The fields are gone now so these don't compile, but they are good reference material
  *
+rebuildRefs(doc, { allDocs }) {
+  Object.keys(doc).forEach((k: string) => {
+    if (k === 'id' || k === 'text') return;
+    const value = doc[k];
+    if (!value) return;
+    if (typeof value === 'string') {
+      if (value.startsWith('/') && allDocs[value] !== undefined)
+        doc[k] = { ref: value };
+    } else if (Array.isArray(value)) {
+      doc[k] = (value as any[]).map((v: any) => {
+        if (
+          typeof v === 'string' &&
+          v.startsWith('/') &&
+          allDocs[v] !== undefined
+        ) {
+          return { ref: v };
+        } else {
+          return v;
+        }
+      });
+    }
+  });
+
+  return doc;
+},
+relatedToBroader(doc, { allDocs }) {
+  if (doc.title || doc.broader || doc.link || doc.src) return;
+  if (!doc.related) throw new Error('invalid doc');
+  const broader = doc.related.filter(r => allDocs[r] && allDocs[r].title);
+  const related = doc.related.filter(r => broader.indexOf(r) === -1);
+  if (broader.length > 0) doc.broader = broader;
+  if (related.length === 0) {
+    delete doc.related;
+  } else {
+    doc.related = related;
+  }
+  return doc;
+},
+linkNodes(doc) {
+  if (!doc.links) return;
+  if (!doc.links.some(models.isLabeledLink)) return;
+  const newLinkDocs = doc.links.filter(models.isLabeledLink).map(l => {
+    const id = generateID();
+    return {
+      _id: topicToDocID(id),
+      id,
+      title: l.title,
+      link: l.link,
+    };
+  });
+  const newLinks = [
+    doc.links.filter(l => !models.isLabeledLink),
+    newLinkDocs.map(d => d.id),
+  ].flat();
+  doc.links = newLinks;
+  return [doc, newLinkDocs].flat();
+},
 uniqueRelated(doc, allDocs) {
   if (!doc.related) return;
   if (!doc.next && !doc.list && !doc.later) return;

@@ -6,24 +6,27 @@ export interface Note {
   created_at: number;
   seq: number | string;
   topic_id: string;
-  related: string[];
+  broader: string[];
   title: undefined;
   src: undefined;
 }
 
 export interface ShortDoc {
   title?: string;
+  link?: string;
+  aka?: string[];
+  links?: Link[];
+  src?: string | Ref;
   text?: string;
-  src?: Link;
-  link?: Link;
-  topic_id?: string;
-  queue?: never;
-  related?: string[];
-  next?: string[];
-  later?: string[];
-  list?: string[];
-  links?: LinkList;
+  related?: Ref[];
+  broader?: Ref[];
+  isA?: Ref[];
+  narrower?: Ref[];
+  collection?: Ref[];
+  next?: Ref[];
+  later?: Ref[];
   props?: DumbProps;
+  topic_id?: string; // look at removing this
   [key: string]: DocValueTypes;
 }
 
@@ -31,57 +34,45 @@ export interface Doc extends ShortDoc {
   id: string;
   created_at?: number;
   stale_at?: number;
-  [key: string]: DocValueTypes;
 }
 
 export interface DumbProps {
   quanity?: string;
-  author?: string;
-  [key: string]: string | undefined;
+  twitter?: string;
+  date?: string;
 }
 
-export type LinkList = Link[];
-export type Link = string | LabeledLink | SearchLink;
+export type Link = string | SearchLink | Ref;
 export interface SearchLink {
   search: string;
 }
-export interface LabeledLink {
-  title: string;
-  link: string;
-}
-export type EditorArrayItemTypes = Link | MaybeLabeledRef;
-export type DocArrayValueTypes = string[] | LinkList;
 export type DocValueTypes =
-  | string[]
+  | Ref[]
   | string
   | number
   | undefined
+  | boolean
   | Link
-  | LinkList
+  | Link[]
   | DumbProps;
 
+export type CouchDocTypes = Doc | Note;
 export type ExistingDoc = PouchDB.Core.ExistingDocument<Doc>;
 export type DocUpdate = PouchDB.Core.PutDocument<Doc> & PouchDB.Core.IdMeta;
-export type CouchDocTypes = Doc | Note;
 export type NewNote = PouchDB.Core.PutDocument<Note>;
 
-export interface EditorDoc {
-  text?: string;
-  links?: LinkList;
-  notes?: RefList;
-  related?: RefList;
-  backrefs?: RefList;
-  [key: string]: EditorValueTypes;
+export interface EditorDoc extends ShortDoc {
+  stale?: true;
+  notes?: Ref[];
+  backrefs?: Ref[];
+  quotes?: Ref[];
 }
 
-export interface LabeledRef {
-  label: string;
+export interface Ref {
+  label?: string;
   ref: string;
 }
 
-export type EditorValueTypes = DocValueTypes | RefList | boolean;
-export type RefList = MaybeLabeledRef[];
-export type MaybeLabeledRef = string | LabeledRef;
 export type EditorStructure = Record<string, EditorDoc>;
 export type AllDocsHash = Record<string, ExistingDoc>;
 
@@ -102,19 +93,10 @@ export function isStorageField(k: string) {
   return StorageFields.indexOf(k) > -1;
 }
 
-export function isDocArrayField(
-  k: string,
-  v: DocValueTypes
-): v is DocArrayValueTypes {
-  return Array.isArray(v);
-}
-
-export function isLabeledRef(l: any): l is LabeledRef {
-  if (typeof l === 'string') {
-    return false;
-  }
-
-  return !!(l as LabeledRef).ref;
+export function isRef(l: any): l is Ref {
+  if (l === undefined) return false;
+  if (typeof l === 'string') return false;
+  return typeof (l as Ref).ref === 'string';
 }
 
 export function isSearchLink(l: any): l is SearchLink {
@@ -122,15 +104,7 @@ export function isSearchLink(l: any): l is SearchLink {
     return false;
   }
 
-  return !!(l as SearchLink).search;
-}
-
-export function isLabeledLink(l: any): l is LabeledLink {
-  if (typeof l === 'string') {
-    return false;
-  }
-
-  return !!(l as LabeledLink).link;
+  return typeof (l as SearchLink).search === 'string';
 }
 
 export function isProps(k: string, o: DocValueTypes): o is DumbProps {

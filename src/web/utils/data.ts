@@ -10,30 +10,38 @@ import { Rendezvous } from '../../common/typed_event';
 export const loading = new Rendezvous<boolean>();
 
 export async function getReverseMappings(
-  topicId: string
+  doc: models.Doc
 ): Promise<models.Doc[]> {
-  const hashed = leveldb.hash(topicId);
+  const outbound = Object.values(doc)
+    .filter(v => Array.isArray(v))
+    .flat()
+    .filter(models.isRef)
+    .map(r => r.ref);
+  const hashed = leveldb.hash(doc.id);
   const glob = await Promise.all(
     Object.values(leveldb.topics.idx).map(idx => idx.get(hashed))
   );
 
-  return glob.flat();
+  return glob
+    .flat()
+    .filter(d => d.stale_at === undefined)
+    .filter(d => outbound.indexOf(d.id) === -1);
 }
 
 export async function getTopic(topicKey: string): Promise<models.Doc | void> {
-  return annotateErrors({ topicKey }, () =>
-    leveldb.topics.get(leveldb.hash(topicKey))
-  ).catch(err => {
-    if (err.name === 'NotFoundError' && err.details) {
-      if (loading.isPending()) {
-        return loading.then(() => getTopic(topicKey));
+  return annotateErrors({ topicKey }, () => leveldb.topics.get(topicKey)).catch(
+    err => {
+      if (err.name === 'NotFoundError' && err.details) {
+        if (loading.isPending()) {
+          return loading.then(() => getTopic(topicKey));
+        } else {
+          console.log({ error: err.message, ...err.details });
+        }
       } else {
-        console.log({ error: err.message, ...err.details });
+        reportError(err);
       }
-    } else {
-      reportError(err);
     }
-  });
+  );
 }
 
 export async function getNotes(topicId: string): Promise<models.Note[]> {
@@ -42,11 +50,8 @@ export async function getNotes(topicId: string): Promise<models.Note[]> {
 }
 
 export async function addNote(topicId: string, text: string) {
-  if (!topicId.startsWith('/')) {
-    topicId = `/${topicId}`;
-  }
-  if (topicId === '/index') {
-    topicId = '/inbox';
+  if (topicId === 'index') {
+    topicId = 'inbox';
   }
 
   const lastSeq = await getLastSeq();
@@ -55,10 +60,10 @@ export async function addNote(topicId: string, text: string) {
   const payload = {
     _id: `$/queue/${topicId}/${id}`,
     topic_id: topicId,
-    related: [topicId],
+    broader: [topicId],
     seq: lastSeq,
     created_at: Date.now(),
-    id: `/${id}`,
+    id,
     text: text.trim(),
   } as models.NewNote;
 
@@ -318,7 +323,7 @@ async function attemptNoteUpload(
     const topicDoc = {
       _id: topicToDocID(id),
       id,
-      related: [topic_id],
+      broader: [{ ref: topic_id }],
       text,
       created_at,
     } as models.DocUpdate;
@@ -345,11 +350,11 @@ function stripDoc<D extends {}>(doc: PouchDB.Core.PutDocument<D>): D {
 }
 
 function topicToDocID(topicID: string): string {
-  if (!topicID.startsWith('/')) {
+  if (topicID.startsWith('/')) {
     throw new ComplexError('invalid topicID', {
       topicID,
     });
   }
 
-  return `$/topics/${leveldb.hash(topicID)}`;
+  return `$/topics/${topicID}`;
 }

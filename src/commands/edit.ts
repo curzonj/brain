@@ -86,7 +86,11 @@ async function onInvalidResult(
   editorContents: string
 ) {
   console.log('Invalid YAML:');
-  console.log(err);
+  if (Array.isArray(err) && err.length === 1 && err[0].missing) {
+    console.dir(err[0].missing);
+  } else {
+    console.log(err);
+  }
 
   const ok = await cli.confirm(`Do you want to continue editing (yes/no)?`);
   if (ok) {

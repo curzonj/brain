@@ -1,9 +1,9 @@
 import { Command } from '@oclif/command';
 import { schemaSelector } from '../cli/schema';
 import {
+  topicToDocID,
   getAllDocsHash,
   findMissingReferences,
-  findDoubledRelations,
 } from '../cli/content';
 
 const couchDbSchema = schemaSelector('existingDocument');
@@ -19,14 +19,18 @@ class AuditCommand extends Command {
           errors: couchDbSchema.errors,
         });
         counter = counter + 1;
+      } else if (doc._id !== topicToDocID(doc.id)) {
+        console.dir({
+          _id: doc._id,
+          id: doc.id,
+          expectedDocID: topicToDocID(doc.id),
+        });
+        counter = counter + 1;
       }
     }
 
     const missingRefs = findMissingReferences(allDocs);
     if (missingRefs.length > 0) console.dir({ missingRefs });
-
-    const doubled = findDoubledRelations(allDocs);
-    if (doubled.length > 0) console.dir({ doubled });
 
     console.log(`${counter} documents failed the audit`);
   }

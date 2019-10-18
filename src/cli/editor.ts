@@ -16,14 +16,7 @@ import {
 import { getDB } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
-import {
-  EditorDoc,
-  EditorStructure,
-  EditorValueTypes,
-  LabeledRef,
-  MaybeLabeledRef,
-  RefList,
-} from '../common/models';
+import { EditorDoc, EditorStructure, Ref } from '../common/models';
 import { schemaSelector } from './schema';
 
 const editorSchema = schemaSelector('editor');
@@ -107,38 +100,6 @@ function onEditorExit(
   }
 }
 
-function isRefList(k: string, v: EditorValueTypes): v is RefList {
-  return k !== 'links' && Array.isArray(v);
-}
-
-function isRefObject(v: MaybeLabeledRef): v is LabeledRef {
-  if (typeof v === 'string') {
-    return false;
-  }
-
-  return v.ref !== undefined && v.label !== undefined;
-}
-
-function dereferenceValue(v: string | LabeledRef): string {
-  if (isRefObject(v)) {
-    return v.ref;
-  } else {
-    return v;
-  }
-}
-
-function sanitizeRewrites(result: EditorStructure) {
-  Object.values(result).forEach(doc => {
-    Object.keys(doc).forEach((k: string) => {
-      const list = doc[k];
-
-      if (isRefList(k, list)) {
-        doc[k] = (list as RefList).map(dereferenceValue);
-      }
-    });
-  });
-}
-
 async function computeDeletions(
   content: EditorStructure,
   newContent: EditorStructure
@@ -150,7 +111,7 @@ async function computeDeletions(
       .filter(k => newContent[k] === undefined)
       .map(async k => {
         try {
-          return db.get(topicToDocID(`/${k}`));
+          return db.get(topicToDocID(k));
         } catch (e) {
           throw new ComplexError('Problem fetching deleted document', {
             cause: e,
@@ -162,18 +123,10 @@ async function computeDeletions(
   );
 }
 
-function isAllStrings(list: any[]): list is string[] {
-  return list.every(i => typeof i === 'string');
-}
-
 function findMissingItems<T>(l1: T[], l2: T[]): T[] {
-  if (isAllStrings(l1) && isAllStrings(l2)) {
-    return l1.filter((i: T) => l2.indexOf(i) === -1);
-  } else {
-    // Find all the items in l1 where none of the items
-    // in l2 match via deepEqual
-    return l1.filter((i: T) => !l2.find((l2i: T) => deepEqual(i, l2i)));
-  }
+  // Find all the items in l1 where none of the items
+  // in l2 match via deepEqual
+  return l1.filter((i: T) => !l2.find((l2i: T) => deepEqual(i, l2i)));
 }
 
 async function computeUpdates(
@@ -190,47 +143,50 @@ async function computeUpdates(
     const newTopicContent = newContentList[k];
     if (!newTopicContent.notes) return;
 
-    const previousContent = contentList[k];
-    const justRefs = newTopicContent.notes.filter(
-      n => typeof n === 'string' && n.startsWith('/')
-    ) as string[];
-    const added = findMissingItems<string>(
-      justRefs,
-      (previousContent.notes as string[]) || []
-    );
-    const removed = findMissingItems<string>(
-      (previousContent.notes as string[]) || [],
+    const previousContent = contentList[k] || {};
+    const justRefs = newTopicContent.notes.filter(models.isRef);
+    const added = findMissingItems<Ref>(justRefs, previousContent.notes || []);
+    const removed = findMissingItems<Ref>(
+      previousContent.notes || [],
       justRefs
     );
 
     // For each note added to this topic, add this topic to the note's related list
-    added.forEach(id => {
-      const target = newContentList[id.slice(1)];
+    added.forEach(ref => {
+      const id = ref.ref;
+      const target = newContentList[id];
+      let broader: models.Ref[];
       if (target) {
-        target.related = target.related || [];
-        target.related.push(`/${k}`);
+        if (target.stale) {
+          broader = target.broader = [];
+        } else {
+          broader = target.broader = target.broader || [];
+        }
       } else {
         // this ensures that the findMissingReferences checker will pick this up
-        (newTopicContent.related = newTopicContent.related || []).push(
-          `/${id}`
-        );
-        return;
+        broader = newTopicContent.broader = newTopicContent.broader || [];
       }
+
+      if (!broader.some(b => b.ref === k)) broader.push({ ref: k });
     });
 
-    // For each note removed from this topic, remove this topic from the note's related list
-    removed.forEach(id => {
-      const target = newContentList[id.slice(1)];
+    // For each note removed from this topic, remove this topic from the note's broader list
+    removed.forEach(ref => {
+      const id = ref.ref;
+      const target = newContentList[id];
       if (!target) return;
-      target.related = (target.related || []).filter(ref => ref !== `/${k}`);
-      if (target.related.length === 0) delete target.related;
+      const newList = (target.broader || []).filter(r => r.ref !== k);
+      if (newList.length === 0) {
+        target.stale = true;
+      } else {
+        target.broader = newList;
+      }
     });
   });
 
   return (await Promise.all(
     changedKeys.map(async k => {
-      const slashId = `/${k}`;
-      const docId = topicToDocID(slashId);
+      const docId = topicToDocID(k);
       const oldDoc = await db
         .get(docId)
         .catch(() => ({ _id: docId, created_at: Date.now() }));
@@ -244,9 +200,10 @@ async function computeUpdates(
 
       // tag: specialAttributes
       delete newContent.backrefs;
+      delete newContent.quotes;
 
       const newTopicContent = {
-        id: slashId,
+        id: k,
         // tag: specialAttributes
         ...pick(oldDoc, ['_id', '_rev', 'created_at']),
         ...newContent,
@@ -255,6 +212,8 @@ async function computeUpdates(
       // tag: specialAttributes
       if (!newTopicContent.text) {
         delete newTopicContent.created_at;
+      } else if (!newTopicContent.created_at) {
+        newTopicContent.created_at = Date.now();
       }
 
       const docEntries = [] as models.DocUpdate[];
@@ -313,9 +272,13 @@ export function sortedYamlDump(input: object): string {
         'next',
         'later',
         'related',
+        'broader',
         'backrefs',
         'links',
         'list',
+        'narrower',
+        'collection',
+        'quotes',
         'notes',
       ];
 
@@ -336,9 +299,14 @@ export function sortedYamlDump(input: object): string {
   });
 }
 
+interface ReverseMappings {
+  notes?: Ref[];
+  backrefs?: Ref[];
+  quotes?: Ref[];
+}
 function buildSortedReverseMappings(
   allDocs: models.AllDocsHash
-): Record<string, { notes?: string[]; backrefs?: string[] }> {
+): Record<string, ReverseMappings> {
   const reverse = buildReverseMappings(allDocs);
   return Object.fromEntries(
     Object.entries(reverse)
@@ -357,21 +325,29 @@ function buildSortedReverseMappings(
       )
       .map(([k, v]) => {
         const notes = v
-          .filter(d => d.title === undefined)
+          .filter(d => d.title === undefined && d.src !== k)
           .sort((a, b) => {
             if (!a.created_at || !b.created_at) return 0;
             if (a.created_at > b.created_at) return -1;
             if (a.created_at < b.created_at) return 1;
             return 0;
           })
-          .map(d => d.id);
+          .map(d => d.id)
+          .map(ref => ({ ref }));
+        const quotes = v
+          .filter(d => d.src === k)
+          .map(d => d.id)
+          .sort()
+          .map(ref => ({ ref }));
         const backrefs = v
           .filter(d => d.title !== undefined)
           .map(d => d.id)
-          .sort();
+          .sort()
+          .map(ref => ({ ref }));
 
-        const ret = {} as any;
+        const ret = {} as ReverseMappings;
         if (notes.length > 0) ret.notes = notes;
+        if (quotes.length > 0) ret.quotes = quotes;
         if (backrefs.length > 0) ret.backrefs = backrefs;
 
         return [k, ret];
@@ -384,7 +360,6 @@ export async function buildEditorStructure(): Promise<EditorStructure> {
   const allMappings = buildSortedReverseMappings(allDocs);
   const rendered = Object.values(allDocs).reduce(
     (acc, doc) => {
-      const id = doc.id.slice(1);
       const shortDoc = models.removeStorageAttributes(doc) as EditorDoc;
 
       // tag: specialAttributes
@@ -394,7 +369,7 @@ export async function buildEditorStructure(): Promise<EditorStructure> {
       const backrefs = allMappings[doc.id];
       if (backrefs) Object.assign(shortDoc, backrefs);
 
-      acc[id] = shortDoc;
+      acc[doc.id] = shortDoc;
 
       return acc;
     },
@@ -411,6 +386,18 @@ export async function buildEditorStructure(): Promise<EditorStructure> {
   return rendered;
 }
 
+function sanitizeRewrites(result: EditorStructure) {
+  Object.values(result).forEach(doc => {
+    Object.keys(doc).forEach((k: string) => {
+      const list = doc[k];
+      if (!list || !Array.isArray(list)) return;
+      list.forEach(item => {
+        if (models.isRef(item)) delete item.label;
+      });
+    });
+  });
+}
+
 export function finalizeEditorStructure(rendered: EditorStructure) {
   Object.values(rendered).forEach((doc: EditorDoc) => {
     // tag: specialAttributes
@@ -419,40 +406,21 @@ export function finalizeEditorStructure(rendered: EditorStructure) {
       delete doc.stale_at;
     }
 
-    Object.keys(doc).forEach(k => renderRefsInDoc(rendered, doc, k));
+    renderRefsInDoc(rendered, doc);
   });
 }
 
-function renderRefsInDoc(docs: EditorStructure, doc: EditorDoc, k: string) {
-  const list = doc[k];
-
-  if (isRefList(k, list)) {
-    doc[k] = (list as RefList).map(
-      (v: MaybeLabeledRef): MaybeLabeledRef => {
-        if (isRefObject(v)) {
-          return v;
-        } else if (typeof v !== 'string') {
-          throw new ComplexError('invalid ref', {
-            v,
-          });
-        } else if (!v.startsWith('/')) {
-          // Not all items in lists are refs
-          return v;
-        } else {
-          const otherDoc = docs[v.slice(1)];
-          if (!otherDoc) {
-            console.log(`Warning: invalid ref ${v} on ${doc.id}`);
-            return {
-              label: 'WARNING: No such ref',
-              ref: v,
-            };
-          }
-          return {
-            label: otherDoc.title || otherDoc.text || otherDoc.link,
-            ref: v,
-          } as LabeledRef;
-        }
+function renderRefsInDoc(docs: EditorStructure, doc: EditorDoc) {
+  Object.keys(doc).forEach((k: string) => {
+    const list = doc[k];
+    if (!list || !Array.isArray(list)) return;
+    list.forEach(item => {
+      if (models.isRef(item)) {
+        let otherDoc = docs[item.ref] || {
+          title: 'WARNING: No such ref',
+        };
+        item.label = otherDoc.title || otherDoc.text || otherDoc.link;
       }
-    );
-  }
+    });
+  });
 }
