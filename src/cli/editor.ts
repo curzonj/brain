@@ -233,44 +233,49 @@ function decomposeEditorTopic(
     'quotes',
   ]) as models.Topic;
 
-  ['notes', 'next', 'later', 'collection'].forEach(field => {
-    if (!Array.isArray(input[field])) return;
-    const newList = inputsToRefs(input[field] as models.EditorRefInput[]);
-    if (field !== 'notes') topic[field] = newList;
-  });
+  decompose(input.next, next => (topic.next = next));
+  decompose(input.later, later => (topic.later = later));
+  decompose(input.collection, collection => (topic.collection = collection));
+  decompose(input.notes);
 
   return topic;
 
-  function inputsToRefs(list: models.EditorRefInput[]) {
-    return list.map(
-      (item): models.Ref => {
-        if (models.isRef(item)) return item;
+  function decompose(
+    list: undefined | models.EditorRefInput[],
+    fn: (r: models.Ref[]) => void = () => {}
+  ) {
+    if (!Array.isArray(list)) return;
+    fn(
+      list.map(
+        (item): models.Ref => {
+          if (models.isRef(item)) return item;
 
-        const id = cuid();
-        let topic: models.Topic;
-        if (typeof item === 'string') {
-          topic = {
-            broader: [{ ref }],
-            text: item,
+          const id = cuid();
+          let topic: models.Topic;
+          if (typeof item === 'string') {
+            topic = {
+              broader: [{ ref }],
+              text: item,
+            };
+          } else {
+            item.broader = [{ ref }];
+            topic = decomposeEditorTopic(id, item, docEntries);
+          }
+
+          const nestedPayload: models.Update = {
+            _id: topicToDocID(id),
+            metadata: {
+              id,
+              created_at: Date.now(),
+            },
+            topic,
           };
-        } else {
-          item.broader = [{ ref }];
-          topic = decomposeEditorTopic(id, item, docEntries);
+
+          docEntries.push(nestedPayload);
+
+          return { ref: id };
         }
-
-        const nestedPayload: models.Update = {
-          _id: topicToDocID(id),
-          metadata: {
-            id,
-            created_at: Date.now(),
-          },
-          topic,
-        };
-
-        docEntries.push(nestedPayload);
-
-        return { ref: id };
-      }
+      )
     );
   }
 }

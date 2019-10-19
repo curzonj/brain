@@ -36,6 +36,7 @@ definitions:
           - $ref: "#/definitions/validIdentifier"
       created_at:
         type: number
+        minimum: 1
       stale_at:
         type: number
   topic:

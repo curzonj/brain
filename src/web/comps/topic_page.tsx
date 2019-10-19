@@ -87,7 +87,7 @@ function textItem(item: any, showMore: boolean = true) {
       <p>
         {item.text}
         {item.src && <span> - {renderSrc(item.src)} </span>}
-        {showMore && <span>({refLink(item.ref, 'more', 'moreLink')})</span>}
+        {showMore && <span> ({refLink(item.ref, 'more', 'moreLink')})</span>}
       </p>
     );
   }

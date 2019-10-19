@@ -2,7 +2,18 @@ import { getTopic, getReverseMappings, loading as dataLoading } from './data';
 import * as models from '../../common/models';
 import { annotateErrors } from '../../common/errors';
 
-const TodoListFieldNames = [['next', 'Next'], ['later', 'Later']];
+type FieldsAndHeadings = [models.TopicKeys, string][];
+const TodoListFieldNames: FieldsAndHeadings = [
+  ['next', 'Next'],
+  ['later', 'Later'],
+];
+const NestedSectionListFieldNames: FieldsAndHeadings = [
+  ['next', 'Next'],
+  ['later', 'Later'],
+  ['broader', 'Broader'],
+  ['related', 'Related'],
+  ['links', 'Links'],
+];
 
 export interface AbstractPage {
   title: string;
@@ -21,9 +32,13 @@ export interface Div {
   list: TextObject[];
 }
 
-const sectionFunctions = [frontSection, listSections, otherFieldsSection] as ((
-  d: models.Topic
-) => Section | Section[])[];
+const sectionFunctions: ((
+  d: models.Payload
+) => Promise<Section | Section[]>)[] = [
+  frontSection,
+  listSections,
+  otherFieldsSection,
+];
 export async function buildAbstractPage(
   topicId: string,
   cb: (p: AbstractPage) => void,
@@ -52,7 +67,7 @@ export async function buildAbstractPage(
 
     await sectionFunctions.reduce(async (acc, fn) => {
       await acc;
-      const sections = [await fn(doc.topic)].flat();
+      const sections = [await fn(doc)].flat();
       sections.forEach(s => page.sections.push(s));
 
       if (progressiveRender) cb(page);
@@ -65,30 +80,35 @@ export async function buildAbstractPage(
     await dataLoading.then(() => buildAbstractPage(topicId, cb, false));
 }
 
-async function frontSection(doc: models.Topic): Promise<Section | never[]> {
+async function frontSection({
+  topic,
+}: models.Payload): Promise<Section | never[]> {
   const divs = [
-    await maybeListDiv(doc.collection),
-    await listFieldNameDivs(TodoListFieldNames, doc),
+    await maybeListDiv(topic.collection),
+    await listFieldNameDivs(TodoListFieldNames, topic),
   ].flat();
 
-  if (!doc.text && divs.length === 0) return [];
+  if (!topic.text && divs.length === 0) return [];
 
   return {
-    text: doc.text,
-    src: doc.src,
+    text: topic.text,
+    src: topic.src,
     divs,
   };
 }
 
-async function listSections(doc: models.Topic): Promise<Section[]> {
-  if (doc.narrower) {
+async function listSections({
+  topic,
+  metadata,
+}: models.Payload): Promise<Section[]> {
+  if (topic.narrower) {
     return Promise.all(
-      doc.narrower.map(async s => {
+      topic.narrower.map(async s => {
         const sectionDoc = await getTopic(s.ref);
         if (!sectionDoc) {
           return { text: `Missing ${s.ref}` };
         }
-        return topicSection(sectionDoc.topic, id => id === doc.id);
+        return topicSection(sectionDoc.topic, id => id === metadata.id);
       })
     );
   } else {
@@ -96,13 +116,6 @@ async function listSections(doc: models.Topic): Promise<Section[]> {
   }
 }
 
-const NestedSectionListFieldNames = [
-  ['next', 'Next'],
-  ['later', 'Later'],
-  ['broader', 'Broader'],
-  ['related', 'Related'],
-  ['links', 'Links'],
-];
 async function topicSection(doc: models.Topic, context: LinkSilencer) {
   return annotateErrors(
     { doc },
@@ -125,7 +138,7 @@ async function maybeListDiv(input: undefined | any[]): Promise<Div | never[]> {
 }
 
 async function listFieldNameDivs(
-  names: string[][],
+  names: FieldsAndHeadings,
   doc: models.Topic,
   context?: LinkSilencer
 ): Promise<Div[]> {
@@ -192,11 +205,13 @@ async function buildRelatedDivList(
   return { related, notes };
 }
 
-async function otherFieldsSection(doc: models.Payload) {
+async function otherFieldsSection(
+  doc: models.Payload
+): Promise<Section | Section[]> {
   const { related, notes } = await buildRelatedDivList(doc);
   const divs = [
     { heading: 'Related', list: related },
-    { heading: 'Links', list: await maybeLabelRefs(doc.topic.links) },
+    { heading: 'Links', list: (await maybeLabelRefs(doc.topic.links)) || [] },
     { heading: 'Notes', list: notes },
   ].filter(d => d.list && d.list.length > 0);
 

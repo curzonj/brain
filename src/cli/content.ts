@@ -35,8 +35,7 @@ export async function applyChanges(
   validateUpdates(changes);
 
   const db = await getDB();
-  const bulkDocsResult = await db.bulkDocs(changes);
-
+  await db.bulkDocs(changes);
   await dumpJSON();
 }
 

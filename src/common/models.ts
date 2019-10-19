@@ -42,8 +42,9 @@ export type Topic = TopicFields & {
   collection?: Ref[];
   next?: Ref[];
   later?: Ref[];
-  [key: string]: FieldTypes;
+  //[key: string]: FieldTypes; // BURN IT
 };
+export type TopicKeys = keyof Topic;
 
 export interface ReverseMappings {
   notes?: Ref[];
@@ -59,8 +60,9 @@ export interface EditorTopic extends TopicFields {
   notes?: EditorRefInput[];
   backrefs?: Ref[];
   quotes?: Ref[];
-  [key: string]: FieldTypes | EditorRefInput[];
+  //[key: string]: FieldTypes | EditorRefInput[];
 }
+export type EditorTopicKeys = keyof EditorTopic;
 
 export interface TopicMetadata {
   id: string;
