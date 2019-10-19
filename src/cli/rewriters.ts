@@ -1,68 +1,107 @@
 import * as models from '../common/models';
-import { topicToDocID, ReverseMap, buildReverseMappings } from './content';
-import { omit } from 'lodash';
+import { buildReverseMappings } from './content';
+import { pick, omit } from 'lodash';
 
 type Rewriter = (
-  d: models.DocUpdate,
+  d: models.Existing,
   opts: SetupObject
-) => models.DocUpdate[] | models.DocUpdate | undefined;
+) => models.Update[] | models.Update | undefined;
 interface RewriterSet {
   [key: string]: Rewriter;
 }
 
 export interface SetupObject {
-  allDocs: models.AllDocsHash;
-  reverse: ReverseMap;
+  allDocs: models.Map<models.Existing>;
+  //reverse: models.Map<models.Payload[]>;
 }
 export async function setupRewriters(
-  allDocs: models.AllDocsHash
+  allDocs: models.Map<models.Existing>
 ): Promise<SetupObject> {
   return {
     allDocs,
-    reverse: buildReverseMappings(allDocs),
+    //reverse: buildReverseMappings(allDocs),
   };
 }
 
 export const rewriters: RewriterSet = {
-  resetID(doc) {
-    let docId = doc.id;
-    if (docId.startsWith("/"))
-      docId = doc.id.slice(1)
-    const expected = topicToDocID(docId);
-    if (doc._id === expected && docId === doc.id) return;
-    return [
-      { ...omit(doc, ['_id', 'id', '_rev']), _id: expected, id: docId } as models.DocUpdate,
-      { ...doc, _deleted: true },
-    ];
-  },
-  stripSlashes(doc) {
-    Object.keys(doc).forEach((k: string) => {
-      const value = doc[k];
-      if (!value) return;
-      if (typeof value === 'string') {
-        if (value.startsWith('/')) doc[k] = value.slice(1);
-      } else if (models.isRef(value) && value.ref.startsWith('/')) {
-        doc[k] = { ref: value.ref.slice(1) };
-      } else if (Array.isArray(value)) {
-        doc[k] = (value as any[]).map((v: any) => {
-          if (typeof v === 'string' && v.startsWith('/')) {
-            return v.slice(1);
-          } else if (models.isRef(v) && v.ref.startsWith('/')) {
-            return { ref: v.ref.slice(1) };
-          } else {
-            return v;
-          }
-        });
-      }
-    });
-
+  createdAt(doc) {
+    if (doc.metadata.created_at) return;
+    doc.metadata.created_at = 1559347200;
     return doc;
+  },
+  nested(doc: any): models.Update {
+    return {
+      ...pick(doc, ['_id', '_rev']),
+      metadata: pick(doc, ['id', 'created_at', 'stale_at']),
+      topic: omit(doc, ['_id', '_rev', 'id', 'created_at', 'stale_at']),
+    };
   },
 };
 
 /*
  * The fields are gone now so these don't compile, but they are good reference material
  *
+relatedToBroader(doc, { allDocs }) {
+  if (!doc.related) return;
+  const isBroader = (r: models.Ref) => {
+    const target = allDocs[r.ref];
+    if (!target) return;
+    const list = target.narrower;
+    if (!Array.isArray(list)) return;
+    return list.some(n => n.ref === doc.id);
+  };
+
+  const newRelated = doc.related.filter(r => !isBroader(r));
+  const newBroader = doc.related.filter(r => isBroader(r));
+
+  if (newRelated.length > 0) {
+    doc.related = newRelated;
+  } else {
+    delete doc.related;
+  }
+
+  if (newBroader.length > 0)
+    doc.broader = newBroader.concat(doc.broader || []);
+
+  return doc;
+},
+resetID(doc) {
+  let docId = doc.id;
+  if (docId.startsWith('/')) docId = doc.id.slice(1);
+  const expected = topicToDocID(docId);
+  if (doc._id === expected && docId === doc.id) return;
+  return [
+    {
+      ...omit(doc, ['_id', 'id', '_rev']),
+      _id: expected,
+      id: docId,
+    } as models.DocUpdate,
+    { ...doc, _deleted: true },
+  ];
+},
+stripSlashes(doc) {
+  Object.keys(doc).forEach((k: string) => {
+    const value = doc[k];
+    if (!value) return;
+    if (typeof value === 'string') {
+      if (value.startsWith('/')) doc[k] = value.slice(1);
+    } else if (models.isRef(value) && value.ref.startsWith('/')) {
+      doc[k] = { ref: value.ref.slice(1) };
+    } else if (Array.isArray(value)) {
+      doc[k] = (value as any[]).map((v: any) => {
+        if (typeof v === 'string' && v.startsWith('/')) {
+          return v.slice(1);
+        } else if (models.isRef(v) && v.ref.startsWith('/')) {
+          return { ref: v.ref.slice(1) };
+        } else {
+          return v;
+        }
+      });
+    }
+  });
+
+  return doc;
+},
 rebuildRefs(doc, { allDocs }) {
   Object.keys(doc).forEach((k: string) => {
     if (k === 'id' || k === 'text') return;

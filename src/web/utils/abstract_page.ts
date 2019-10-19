@@ -1,9 +1,4 @@
-import {
-  getTopic,
-  getNotes,
-  getReverseMappings,
-  loading as dataLoading,
-} from './data';
+import { getTopic, getReverseMappings, loading as dataLoading } from './data';
 import * as models from '../../common/models';
 import { annotateErrors } from '../../common/errors';
 
@@ -27,7 +22,7 @@ export interface Div {
 }
 
 const sectionFunctions = [frontSection, listSections, otherFieldsSection] as ((
-  d: models.Doc
+  d: models.Topic
 ) => Section | Section[])[];
 export async function buildAbstractPage(
   topicId: string,
@@ -50,14 +45,14 @@ export async function buildAbstractPage(
 
   await annotateErrors({ doc }, async () => {
     const page = {
-      title: deriveTitle(doc),
+      title: deriveTitle(doc.topic),
       sections: [] as Section[],
     };
     if (progressiveRender) cb(page);
 
     await sectionFunctions.reduce(async (acc, fn) => {
       await acc;
-      const sections = [await fn(doc)].flat();
+      const sections = [await fn(doc.topic)].flat();
       sections.forEach(s => page.sections.push(s));
 
       if (progressiveRender) cb(page);
@@ -70,7 +65,7 @@ export async function buildAbstractPage(
     await dataLoading.then(() => buildAbstractPage(topicId, cb, false));
 }
 
-async function frontSection(doc: models.Doc): Promise<Section | never[]> {
+async function frontSection(doc: models.Topic): Promise<Section | never[]> {
   const divs = [
     await maybeListDiv(doc.collection),
     await listFieldNameDivs(TodoListFieldNames, doc),
@@ -85,15 +80,15 @@ async function frontSection(doc: models.Doc): Promise<Section | never[]> {
   };
 }
 
-async function listSections(doc: models.Doc): Promise<Section[]> {
+async function listSections(doc: models.Topic): Promise<Section[]> {
   if (doc.narrower) {
     return Promise.all(
-      doc.narrower.map(async (s: any) => {
+      doc.narrower.map(async s => {
         const sectionDoc = await getTopic(s.ref);
         if (!sectionDoc) {
-          return { text: `Missing ${s}` };
+          return { text: `Missing ${s.ref}` };
         }
-        return topicSection(sectionDoc, s => s === doc.id);
+        return topicSection(sectionDoc.topic, id => id === doc.id);
       })
     );
   } else {
@@ -108,7 +103,7 @@ const NestedSectionListFieldNames = [
   ['related', 'Related'],
   ['links', 'Links'],
 ];
-async function topicSection(doc: models.Doc, context: LinkSilencer) {
+async function topicSection(doc: models.Topic, context: LinkSilencer) {
   return annotateErrors(
     { doc },
     async (): Promise<Section> => {
@@ -131,7 +126,7 @@ async function maybeListDiv(input: undefined | any[]): Promise<Div | never[]> {
 
 async function listFieldNameDivs(
   names: string[][],
-  doc: models.Doc,
+  doc: models.Topic,
   context?: LinkSilencer
 ): Promise<Div[]> {
   return (await Promise.all(
@@ -145,14 +140,14 @@ async function listFieldNameDivs(
 }
 
 async function buildRelatedDivList(
-  doc: models.Doc
+  doc: models.Payload
 ): Promise<{ related: TextObject[]; notes: TextObject[] }> {
-  const list = [await getNotes(doc.id), await getReverseMappings(doc)].flat();
+  const list = await getReverseMappings(doc);
 
   const notes: TextObject[] = await Promise.all(
     list
-      .filter(t => t.title === undefined)
-      .sort((a, b) => {
+      .filter(t => t.topic.title === undefined)
+      .sort(({ metadata: a }, { metadata: b }) => {
         if (!a.created_at || !b.created_at)
           throw new Error('note missing created_at during sort');
         if (a.created_at > b.created_at) return -1;
@@ -163,23 +158,27 @@ async function buildRelatedDivList(
   );
 
   let related: TextObject[] = await Promise.all(
-    list.filter(t => t.title !== undefined).map(topicToTextObject)
+    list.filter(t => t.topic.title !== undefined).map(topicToTextObject)
   );
 
-  if (doc.related) {
-    (await Promise.all(doc.related.map(refToTextObject))).flat().forEach(to => {
-      if (!related.some(rto => rto.ref === to.ref)) {
-        related.unshift(to);
-      }
-    });
+  if (doc.topic.related) {
+    (await Promise.all(doc.topic.related.map(refToTextObject)))
+      .flat()
+      .forEach(to => {
+        if (!related.some(rto => rto.ref === to.ref)) {
+          related.unshift(to);
+        }
+      });
   }
 
-  if (doc.broader) {
-    (await Promise.all(doc.broader.map(refToTextObject))).flat().forEach(to => {
-      if (!related.some(rto => rto.ref === to.ref)) {
-        related.unshift(to);
-      }
-    });
+  if (doc.topic.broader) {
+    (await Promise.all(doc.topic.broader.map(refToTextObject)))
+      .flat()
+      .forEach(to => {
+        if (!related.some(rto => rto.ref === to.ref)) {
+          related.unshift(to);
+        }
+      });
   }
 
   related = related.sort((a, b) => {
@@ -193,11 +192,11 @@ async function buildRelatedDivList(
   return { related, notes };
 }
 
-async function otherFieldsSection(doc: models.Doc) {
+async function otherFieldsSection(doc: models.Payload) {
   const { related, notes } = await buildRelatedDivList(doc);
   const divs = [
     { heading: 'Related', list: related },
-    { heading: 'Links', list: await maybeLabelRefs(doc.links) },
+    { heading: 'Links', list: await maybeLabelRefs(doc.topic.links) },
     { heading: 'Notes', list: notes },
   ].filter(d => d.list && d.list.length > 0);
 
@@ -225,13 +224,13 @@ async function maybeLabelRefs(
 }
 
 async function refToTextObject(ref: models.Ref): Promise<TextObject | never[]> {
-  const topic = await getTopic(ref.ref);
-  if (!topic) {
+  const doc = await getTopic(ref.ref);
+  if (!doc) {
     return { text: `Missing ${ref.ref}` };
-  } else if (topic.stale_at) {
+  } else if (doc.metadata.stale_at) {
     return [];
   } else {
-    return topicToTextObject(topic);
+    return topicToTextObject(doc);
   }
 }
 
@@ -241,22 +240,23 @@ interface TextObject {
   text?: string;
   src?: any;
 }
-async function topicToTextObject(
-  topic: models.Note | models.Doc
-): Promise<TextObject> {
+async function topicToTextObject({
+  topic,
+  metadata,
+}: models.Payload): Promise<TextObject> {
   if (topic.title) {
     return {
-      ref: topic.id,
-      label: deriveTitle(topic as models.Doc),
+      ref: metadata.id,
+      label: deriveTitle(topic),
     };
   } else if (!topic.text) {
     return {
-      ref: topic.id,
-      label: deriveTitle(topic as models.Doc),
+      ref: metadata.id,
+      label: deriveTitle(topic),
     };
   } else {
     return {
-      ref: topic.id,
+      ref: metadata.id,
       text: topic.text,
       src: await maybeResolveSrc(topic.src),
     };
@@ -273,14 +273,14 @@ async function maybeResolveSrc(src: undefined | models.Link) {
     }
     return {
       ref: src.ref,
-      label: deriveTitle(srcNode),
+      label: deriveTitle(srcNode.topic),
     };
   } else {
     return src;
   }
 }
 
-function deriveTitle(n: models.Doc): string {
+function deriveTitle(n: models.Topic): string {
   if (!n) return 'Missing Page';
   return n.title || n.link || 'Note';
 }

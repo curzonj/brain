@@ -8,7 +8,7 @@ import {
   editFile,
   sortedYamlDump,
 } from '../cli/editor';
-import { EditorStructure } from '../common/models';
+import * as models from '../common/models';
 import { schemaSelector } from '../cli/schema';
 
 const editorSchema = schemaSelector('editor');
@@ -50,7 +50,7 @@ EditCommand.flags = {
 module.exports = EditCommand;
 
 async function getContentString(
-  content: EditorStructure,
+  content: models.Map<models.EditorTopic>,
   recover: boolean
 ): Promise<string | undefined> {
   if (!editorSchema(content)) {

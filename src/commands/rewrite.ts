@@ -7,7 +7,7 @@ import { applyChanges, getAllDocsHash } from '../cli/content';
 import * as models from '../common/models';
 import { setupRewriters, rewriters } from '../cli/rewriters';
 
-const couchDbSchema = schemaSelector('couchTopicUpdate');
+const couchDbSchema = schemaSelector('payload');
 
 class RewriteCommand extends Command {
   async run() {
@@ -20,7 +20,7 @@ class RewriteCommand extends Command {
 
     const allDocs = await getAllDocsHash();
     const opts = await setupRewriters(allDocs);
-    const modified: models.DocUpdate[] = [];
+    const modified: models.Update[] = [];
 
     for (let doc of Object.values(allDocs)) {
       const result = rewriter(cloneDeep(doc), opts);

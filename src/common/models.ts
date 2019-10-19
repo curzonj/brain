@@ -1,17 +1,30 @@
 import PouchDB from 'pouchdb';
 
-export interface Note {
-  id: string;
-  text: string;
-  created_at: number;
-  seq: number | string;
-  topic_id: string;
-  broader: string[];
-  title: undefined;
-  src: undefined;
+export type Link = string | SearchLink | Ref;
+export interface SearchLink {
+  search: string;
+}
+export interface Ref {
+  label?: string;
+  ref: string;
 }
 
-export interface ShortDoc {
+export interface DumbProps {
+  quanity?: string;
+  twitter?: string;
+  date?: string;
+}
+
+export type FieldTypes =
+  | Ref[]
+  | string
+  | undefined
+  | boolean
+  | Link
+  | Link[]
+  | DumbProps;
+
+export interface TopicFields {
   title?: string;
   link?: string;
   aka?: string[];
@@ -22,75 +35,52 @@ export interface ShortDoc {
   broader?: Ref[];
   isA?: Ref[];
   narrower?: Ref[];
+  props?: DumbProps;
+}
+
+export type Topic = TopicFields & {
   collection?: Ref[];
   next?: Ref[];
   later?: Ref[];
-  props?: DumbProps;
-  topic_id?: string; // look at removing this
-  [key: string]: DocValueTypes;
-}
+  [key: string]: FieldTypes;
+};
 
-export interface Doc extends ShortDoc {
-  id: string;
-  created_at?: number;
-  stale_at?: number;
-}
-
-export interface DumbProps {
-  quanity?: string;
-  twitter?: string;
-  date?: string;
-}
-
-export type Link = string | SearchLink | Ref;
-export interface SearchLink {
-  search: string;
-}
-export type DocValueTypes =
-  | Ref[]
-  | string
-  | number
-  | undefined
-  | boolean
-  | Link
-  | Link[]
-  | DumbProps;
-
-export type CouchDocTypes = Doc | Note;
-export type ExistingDoc = PouchDB.Core.ExistingDocument<Doc>;
-export type DocUpdate = PouchDB.Core.PutDocument<Doc> & PouchDB.Core.IdMeta;
-export type NewNote = PouchDB.Core.PutDocument<Note>;
-
-export interface EditorDoc extends ShortDoc {
-  stale?: true;
+export interface ReverseMappings {
   notes?: Ref[];
   backrefs?: Ref[];
   quotes?: Ref[];
 }
-
-export interface Ref {
-  label?: string;
-  ref: string;
+export type EditorRefInput = Ref | string | EditorTopic;
+export interface EditorTopic extends TopicFields {
+  stale?: true;
+  collection?: EditorRefInput[];
+  next?: EditorRefInput[];
+  later?: EditorRefInput[];
+  notes?: EditorRefInput[];
+  backrefs?: Ref[];
+  quotes?: Ref[];
+  [key: string]: FieldTypes | EditorRefInput[];
 }
 
-export type EditorStructure = Record<string, EditorDoc>;
-export type AllDocsHash = Record<string, ExistingDoc>;
-
-export const StorageFields = ['_rev', '_id', '_deleted', 'id'];
-export function removeStorageAttributes(
-  doc: ExistingDoc | DocUpdate
-): ShortDoc {
-  const clone = { ...doc } as any;
-
-  StorageFields.forEach(k => {
-    delete clone[k];
-  });
-
-  return clone as ShortDoc;
+export interface TopicMetadata {
+  id: string;
+  created_at: number;
+  stale_at?: number;
 }
 
-export function isStorageField(k: string) {
-  return StorageFields.indexOf(k) > -1;
+export interface Payload {
+  topic: Topic;
+  metadata: TopicMetadata;
+}
+
+export type Existing<T = Payload> = PouchDB.Core.ExistingDocument<T>;
+export type Update<T = Payload> = PouchDB.Core.PutDocument<T> &
+  PouchDB.Core.IdMeta;
+export type Create<T = Payload> = PouchDB.Core.PutDocument<T>;
+export type Map<T> = Record<string, T>;
+
+export function getAllRefs<T extends TopicFields>(doc: T): Ref[] {
+  return Object.values(doc).flatMap(item => [item].flat().filter(isRef));
 }
 
 export function isRef(l: any): l is Ref {
@@ -107,6 +97,6 @@ export function isSearchLink(l: any): l is SearchLink {
   return typeof (l as SearchLink).search === 'string';
 }
 
-export function isProps(k: string, o: DocValueTypes): o is DumbProps {
+export function isProps(k: string, o: FieldTypes): o is DumbProps {
   return k === 'props';
 }

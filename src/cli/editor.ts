@@ -3,12 +3,12 @@ import { deepEqual } from 'fast-equals';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import * as tmp from 'tmp';
-import { pick } from 'lodash';
+import { pick, omit } from 'lodash';
+import cuid from 'cuid';
 
 import {
   applyChanges,
   topicToDocID,
-  unstackNestedDocuments,
   findMissingReferences,
   getAllDocsHash,
   buildReverseMappings,
@@ -16,13 +16,12 @@ import {
 import { getDB } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
-import { EditorDoc, EditorStructure, Ref } from '../common/models';
 import { schemaSelector } from './schema';
 
 const editorSchema = schemaSelector('editor');
 
 type editFileResult =
-  | { content: EditorStructure; changed: boolean }
+  | { content: models.Map<models.EditorTopic>; changed: boolean }
   | undefined;
 type resolveFunc = (value: editFileResult | Promise<editFileResult>) => void;
 type rejectFunc = (error: Error) => void;
@@ -101,8 +100,8 @@ function onEditorExit(
 }
 
 async function computeDeletions(
-  content: EditorStructure,
-  newContent: EditorStructure
+  content: models.Map<models.EditorTopic>,
+  newContent: models.Map<models.EditorTopic>
 ) {
   const db = await getDB();
 
@@ -123,15 +122,13 @@ async function computeDeletions(
   );
 }
 
-function findMissingItems<T>(l1: T[], l2: T[]): T[] {
-  // Find all the items in l1 where none of the items
-  // in l2 match via deepEqual
-  return l1.filter((i: T) => !l2.find((l2i: T) => deepEqual(i, l2i)));
+function findMissingRefs(more: models.Ref[], less: models.Ref[]): models.Ref[] {
+  return more.filter(i => !less.some(i2 => i2.ref === i.ref));
 }
 
 async function computeUpdates(
-  contentList: EditorStructure,
-  newContentList: EditorStructure
+  contentList: models.Map<models.EditorTopic>,
+  newContentList: models.Map<models.EditorTopic>
 ) {
   const db = await getDB();
   const changedKeys = Object.keys(newContentList).filter(
@@ -141,14 +138,16 @@ async function computeUpdates(
   // tag: specialAttributes
   changedKeys.forEach(k => {
     const newTopicContent = newContentList[k];
-    if (!newTopicContent.notes) return;
+    const newNotes = newTopicContent.notes || [];
 
     const previousContent = contentList[k] || {};
-    const justRefs = newTopicContent.notes.filter(models.isRef);
-    const added = findMissingItems<Ref>(justRefs, previousContent.notes || []);
-    const removed = findMissingItems<Ref>(
-      previousContent.notes || [],
-      justRefs
+    const allRefs = models.getAllRefs(newTopicContent);
+    const justRefNotes = newNotes.filter(models.isRef);
+    const oldNotes = (previousContent.notes || []).filter(models.isRef);
+    const added = findMissingRefs(justRefNotes, oldNotes);
+    const removed = findMissingRefs(
+      findMissingRefs(oldNotes, justRefNotes),
+      allRefs
     );
 
     // For each note added to this topic, add this topic to the note's related list
@@ -177,6 +176,7 @@ async function computeUpdates(
       if (!target) return;
       const newList = (target.broader || []).filter(r => r.ref !== k);
       if (newList.length === 0) {
+        if (changedKeys.indexOf(id) === -1) changedKeys.push(id);
         target.stale = true;
       } else {
         target.broader = newList;
@@ -189,46 +189,95 @@ async function computeUpdates(
       const docId = topicToDocID(k);
       const oldDoc = await db
         .get(docId)
-        .catch(() => ({ _id: docId, created_at: Date.now() }));
-
-      const newContent = newContentList[k];
-
-      // tag: specialAttributes
-      if (oldDoc.stale_at === undefined && newContent.stale === true)
-        newContent.stale_at = Date.now();
-      delete newContent.stale;
-
-      // tag: specialAttributes
-      delete newContent.backrefs;
-      delete newContent.quotes;
-
-      const newTopicContent = {
-        id: k,
         // tag: specialAttributes
-        ...pick(oldDoc, ['_id', '_rev', 'created_at']),
-        ...newContent,
-      } as models.DocUpdate;
+        .catch(() => ({
+          _id: docId,
+          metadata: { id: k, created_at: Date.now() },
+        }));
+
+      const docEntries: models.Update[] = [];
+      const newContent = newContentList[k];
+      const newPayload: models.Update = {
+        ...pick(oldDoc, ['_id', '_rev', 'metadata']),
+        topic: decomposeEditorTopic(k, newContent, docEntries),
+      };
 
       // tag: specialAttributes
-      if (!newTopicContent.text) {
-        delete newTopicContent.created_at;
-      } else if (!newTopicContent.created_at) {
-        newTopicContent.created_at = Date.now();
+      if (oldDoc.metadata.stale_at === undefined && newContent.stale === true)
+        newPayload.metadata.stale_at = Date.now();
+
+      // tag: specialAttributes
+      if (newContent.text && !newPayload.metadata.created_at) {
+        newPayload.metadata.created_at = Date.now();
       }
 
-      const docEntries = [] as models.DocUpdate[];
-      unstackNestedDocuments(newTopicContent, docEntries);
-
-      docEntries.push(newTopicContent);
+      if (!deepEqual(oldDoc, newPayload)) docEntries.push(newPayload);
 
       return docEntries;
     })
   )).flat();
 }
 
+function decomposeEditorTopic(
+  ref: string,
+  input: models.EditorTopic,
+  docEntries: models.Update[]
+): models.Topic {
+  const topic = omit(input, [
+    'stale',
+    'collection',
+    'next',
+    'later',
+    'notes',
+    'backrefs',
+    'quotes',
+  ]) as models.Topic;
+
+  ['notes', 'next', 'later', 'collection'].forEach(field => {
+    if (!Array.isArray(input[field])) return;
+    const newList = inputsToRefs(input[field] as models.EditorRefInput[]);
+    if (field !== 'notes') topic[field] = newList;
+  });
+
+  return topic;
+
+  function inputsToRefs(list: models.EditorRefInput[]) {
+    return list.map(
+      (item): models.Ref => {
+        if (models.isRef(item)) return item;
+
+        const id = cuid();
+        let topic: models.Topic;
+        if (typeof item === 'string') {
+          topic = {
+            broader: [{ ref }],
+            text: item,
+          };
+        } else {
+          item.broader = [{ ref }];
+          topic = decomposeEditorTopic(id, item, docEntries);
+        }
+
+        const nestedPayload: models.Update = {
+          _id: topicToDocID(id),
+          metadata: {
+            id,
+            created_at: Date.now(),
+          },
+          topic,
+        };
+
+        docEntries.push(nestedPayload);
+
+        return { ref: id };
+      }
+    );
+  }
+}
+
 export async function applyEditorChanges(
-  content: EditorStructure,
-  newContent: EditorStructure
+  content: models.Map<models.EditorTopic>,
+  newContent: models.Map<models.EditorTopic>
 ) {
   sanitizeRewrites(newContent);
   sanitizeRewrites(content);
@@ -239,12 +288,15 @@ export async function applyEditorChanges(
   await applyChanges(updates, deletes);
 }
 
-function findErrors(doc: EditorStructure) {
-  if (!editorSchema(doc)) {
+function findErrors(editorPayload: models.Map<models.EditorTopic>) {
+  if (!editorSchema(editorPayload)) {
     return editorSchema.errors;
   }
 
-  const missing = findMissingReferences(doc);
+  const missing = findMissingReferences(
+    Object.values(editorPayload),
+    editorPayload
+  );
   if (missing.length > 0) {
     return [{ missing }];
   }
@@ -296,53 +348,51 @@ export function sortedYamlDump(input: object): string {
   });
 }
 
-interface ReverseMappings {
-  notes?: Ref[];
-  backrefs?: Ref[];
-  quotes?: Ref[];
-}
 function buildSortedReverseMappings(
-  allDocs: models.AllDocsHash
-): Record<string, ReverseMappings> {
+  allDocs: models.Map<models.Payload>
+): Record<string, models.ReverseMappings> {
   const reverse = buildReverseMappings(allDocs);
   return Object.fromEntries(
     Object.entries(reverse)
-      .map(
-        ([referencedId, list]) =>
-          [
-            referencedId,
-            list.filter(
-              referencingDoc =>
-                !referencingDoc.stale_at &&
-                // This removes any backrefs that are already included in some list field of the referenced doc
-                (!reverse[referencingDoc.id] ||
-                  !reverse[referencingDoc.id].some(d => d.id === referencedId))
-            ),
-          ] as [string, models.Doc[]]
-      )
+      .map(([referencedId, list]): [string, models.Payload[]] => [
+        referencedId,
+        list.filter(
+          ({ metadata: referencingDoc }) =>
+            !referencingDoc.stale_at &&
+            // This removes any backrefs that are already included in some list field of the referenced doc
+            (!reverse[referencingDoc.id] ||
+              !reverse[referencingDoc.id].some(
+                ({ metadata }) => metadata.id === referencedId
+              ))
+        ),
+      ])
       .map(([k, v]) => {
         const notes = v
-          .filter(d => d.title === undefined && d.src !== k)
-          .sort((a, b) => {
+          .filter(
+            ({ topic }) =>
+              topic.title === undefined &&
+              (!models.isRef(topic.src) || topic.src.ref !== k)
+          )
+          .sort(({ metadata: a }, { metadata: b }) => {
             if (!a.created_at || !b.created_at) return 0;
             if (a.created_at > b.created_at) return -1;
             if (a.created_at < b.created_at) return 1;
             return 0;
           })
-          .map(d => d.id)
+          .map(({ metadata }) => metadata.id)
           .map(ref => ({ ref }));
         const quotes = v
-          .filter(d => d.src === k)
-          .map(d => d.id)
+          .filter(({ topic }) => models.isRef(topic.src) && topic.src.ref === k)
+          .map(({ metadata }) => metadata.id)
           .sort()
           .map(ref => ({ ref }));
         const backrefs = v
-          .filter(d => d.title !== undefined)
-          .map(d => d.id)
+          .filter(({ topic }) => topic.title !== undefined)
+          .map(({ metadata }) => metadata.id)
           .sort()
           .map(ref => ({ ref }));
 
-        const ret = {} as ReverseMappings;
+        const ret: models.ReverseMappings = {};
         if (notes.length > 0) ret.notes = notes;
         if (quotes.length > 0) ret.quotes = quotes;
         if (backrefs.length > 0) ret.backrefs = backrefs;
@@ -352,28 +402,40 @@ function buildSortedReverseMappings(
   );
 }
 
-export async function buildEditorStructure(): Promise<EditorStructure> {
+export async function buildEditorStructure(): Promise<
+  models.Map<models.EditorTopic>
+> {
   const allDocs = await getAllDocsHash();
   const allMappings = buildSortedReverseMappings(allDocs);
   const rendered = Object.values(allDocs).reduce(
-    (acc, doc) => {
-      const shortDoc = models.removeStorageAttributes(doc) as EditorDoc;
+    (
+      acc: models.Map<models.EditorTopic>,
+      { metadata, topic: serializedTopic }
+    ) => {
+      const topic: models.EditorTopic = serializedTopic;
+      const backrefs = allMappings[metadata.id];
+      if (backrefs) Object.assign(topic, backrefs);
 
       // tag: specialAttributes
-      delete shortDoc.created_at;
+      if (metadata.stale_at !== undefined) {
+        topic.stale = true;
+      }
 
-      // tag: specialAttributes
-      const backrefs = allMappings[doc.id];
-      if (backrefs) Object.assign(shortDoc, backrefs);
+      models.getAllRefs(topic).forEach(ref => {
+        const { topic: otherDoc } = allDocs[ref.ref] || {
+          topic: {
+            title: 'WARNING: No such ref',
+          },
+        };
+        ref.label = otherDoc.title || otherDoc.text || otherDoc.link;
+      });
 
-      acc[doc.id] = shortDoc;
+      acc[metadata.id] = topic;
 
       return acc;
     },
-    {} as Record<string, EditorDoc>
+    {}
   );
-
-  finalizeEditorStructure(rendered);
 
   if (!editorSchema(rendered)) {
     console.dir(editorSchema.errors);
@@ -383,41 +445,8 @@ export async function buildEditorStructure(): Promise<EditorStructure> {
   return rendered;
 }
 
-function sanitizeRewrites(result: EditorStructure) {
-  Object.values(result).forEach(doc => {
-    Object.keys(doc).forEach((k: string) => {
-      const list = doc[k];
-      if (!list || !Array.isArray(list)) return;
-      list.forEach(item => {
-        if (models.isRef(item)) delete item.label;
-      });
-    });
-  });
-}
-
-export function finalizeEditorStructure(rendered: EditorStructure) {
-  Object.values(rendered).forEach((doc: EditorDoc) => {
-    // tag: specialAttributes
-    if (doc.stale_at !== undefined) {
-      doc.stale = true;
-      delete doc.stale_at;
-    }
-
-    renderRefsInDoc(rendered, doc);
-  });
-}
-
-function renderRefsInDoc(docs: EditorStructure, doc: EditorDoc) {
-  Object.keys(doc).forEach((k: string) => {
-    const list = doc[k];
-    if (!list || !Array.isArray(list)) return;
-    list.forEach(item => {
-      if (models.isRef(item)) {
-        let otherDoc = docs[item.ref] || {
-          title: 'WARNING: No such ref',
-        };
-        item.label = otherDoc.title || otherDoc.text || otherDoc.link;
-      }
-    });
-  });
+function sanitizeRewrites(result: models.Map<models.EditorTopic>) {
+  Object.values(result).forEach((doc: models.EditorTopic) =>
+    models.getAllRefs(doc).forEach(ref => delete ref.label)
+  );
 }

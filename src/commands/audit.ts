@@ -6,7 +6,7 @@ import {
   findMissingReferences,
 } from '../cli/content';
 
-const couchDbSchema = schemaSelector('existingDocument');
+const couchDbSchema = schemaSelector('payload');
 
 class AuditCommand extends Command {
   async run() {
@@ -19,17 +19,20 @@ class AuditCommand extends Command {
           errors: couchDbSchema.errors,
         });
         counter = counter + 1;
-      } else if (doc._id !== topicToDocID(doc.id)) {
+      } else if (doc._id !== topicToDocID(doc.metadata.id)) {
         console.dir({
           _id: doc._id,
-          id: doc.id,
-          expectedDocID: topicToDocID(doc.id),
+          id: doc.metadata.id,
+          expectedDocID: topicToDocID(doc.metadata.id),
         });
         counter = counter + 1;
       }
     }
 
-    const missingRefs = findMissingReferences(allDocs);
+    const missingRefs = findMissingReferences(
+      Object.values(allDocs).map(d => d.topic),
+      allDocs
+    );
     if (missingRefs.length > 0) console.dir({ missingRefs });
 
     console.log(`${counter} documents failed the audit`);

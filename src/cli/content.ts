@@ -1,51 +1,46 @@
 import * as fs from 'fs';
-import cuid from 'cuid';
 import { getDB } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
 import { schemaSelector } from './schema';
 
-const couchDbSchema = schemaSelector('couchTopicUpdate');
+const couchDbSchema = schemaSelector('payload');
 
-export async function getAllDocsHash() {
+export async function getAllDocsHash(): Promise<models.Map<models.Existing>> {
   const db = await getDB();
-  const { rows } = await db.allDocs<models.ExistingDoc>({
+  const { rows } = await db.allDocs<models.Payload>({
     include_docs: true,
     startkey: '$/topics/',
     endkey: '$/topics/\ufff0',
   });
 
-  return rows.reduce(
-    (acc, { doc }) => {
-      if (doc) {
-        acc[doc.id] = doc;
-      }
+  return rows
+    .map(r => r.doc)
+    .filter(d => d !== undefined)
+    .reduce((acc: models.Map<models.Existing>, doc: models.Existing) => {
+      acc[doc.metadata.id] = doc;
       return acc;
-    },
-    {} as models.AllDocsHash
-  );
+    }, {});
 }
 
 export async function applyChanges(
-  updates: models.DocUpdate[],
-  docsToDelete: models.ExistingDoc[] = []
+  updates: models.Update[],
+  docsToDelete: models.Existing[] = []
 ) {
   const deletes = docsToDelete.map(
-    d => ({ ...d, _deleted: true } as models.DocUpdate)
+    d => ({ ...d, _deleted: true } as models.Update)
   );
   const changes = [...updates, ...deletes];
 
   validateUpdates(changes);
 
   const db = await getDB();
-
   const bulkDocsResult = await db.bulkDocs(changes);
-  console.log(bulkDocsResult.filter(bdRes => !(bdRes as any).ok));
 
   await dumpJSON();
 }
 
-function validateUpdates(updates: models.DocUpdate[]) {
+function validateUpdates(updates: models.Update[]) {
   const errors = updates.flatMap(u => {
     if (couchDbSchema(u)) {
       return [];
@@ -91,88 +86,26 @@ export function topicToDocID(topicID: string): string {
   return `$/topics/${topicID}`;
 }
 
-export function unstackNestedDocuments(
-  doc: models.DocUpdate,
-  docEntries: models.DocUpdate[]
-) {
-  function inner(field: string) {
-    const list: any = doc[field];
-    if (!Array.isArray(list)) return;
-
-    doc[field] = list.map((item: any) => {
-      if (models.isRef(item)) return item;
-
-      const newId = cuid();
-      const newTopic = {
-        _id: topicToDocID(newId),
-        id: newId,
-        broader: [{ ref: doc.id }],
-        created_at: Date.now(),
-      } as models.DocUpdate;
-
-      if (typeof item === 'string') {
-        newTopic.text = item;
-      } else {
-        Object.assign(newTopic, item);
-        unstackNestedDocuments(newTopic, docEntries);
-      }
-
-      // tag: specialAttributes
-      if (!newTopic.text) {
-        delete newTopic.created_at;
-      }
-
-      docEntries.push(newTopic);
-
-      return { ref: newTopic.id };
-    });
-  }
-
-  ['notes', 'next', 'later', 'collection'].forEach(inner);
-
-  // tag: specialAttributes
-  delete doc.notes;
-}
-
 export function findMissingReferences(
-  allDocs: models.EditorStructure | models.AllDocsHash
+  topics: models.TopicFields[],
+  keys: models.Map<any>
 ) {
-  return Object.values(allDocs).flatMap(topic =>
-    Object.keys(topic).flatMap(k => {
-      if (k === 'links') {
-        return [];
-      }
-      if (k === 'props') {
-        return [];
-      }
-      const value = [topic[k]].flat();
-      return value
-        .filter(s => models.isRef(s))
-        .filter(s => allDocs[s.ref] === undefined);
-    })
+  return topics.flatMap(topic =>
+    models
+      .getAllRefs(topic)
+      .filter(s => keys[s.ref] === undefined)
+      .map(s => s.ref)
   );
 }
 
-export type ReverseMap = Record<string, models.Doc[]>;
-export function buildReverseMappings(allDocs: models.AllDocsHash): ReverseMap {
-  const reverse = {} as ReverseMap;
-  function append(r: any, doc: models.Doc) {
-    if (models.isRef(r) && r.ref !== doc.id) {
-      reverse[r.ref] = reverse[r.ref] || [];
-      reverse[r.ref].push(doc);
-    }
-  }
-
-  Object.values(allDocs).forEach(doc =>
-    Object.keys(doc).forEach(k => {
-      const field = doc[k];
-      if (Array.isArray(field)) {
-        field.forEach(f => append(f, doc));
-      } else {
-        append(field, doc);
-      }
-    })
+export function buildReverseMappings(allDocs: models.Map<models.Payload>) {
+  return Object.values(allDocs).reduce(
+    (acc: models.Map<models.Payload[]>, doc: models.Payload) => {
+      models
+        .getAllRefs(doc.topic)
+        .forEach(r => (acc[r.ref] = acc[r.ref] || []).push(doc));
+      return acc;
+    },
+    {}
   );
-
-  return reverse;
 }

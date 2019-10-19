@@ -5,7 +5,8 @@ import $RefParser from 'json-schema-ref-parser';
 
 const schemaContents = fs.readFileSync(`${__dirname}/../../schema.yml`, 'utf8');
 
-export function schemaSelector(definition: string): Ajv.ValidateFunction {
+type SchemaName = 'payload' | 'editor';
+export function schemaSelector(definition: SchemaName): Ajv.ValidateFunction {
   const schemaDocument = yaml.safeLoad(schemaContents);
   schemaDocument.$ref = `#/definitions/${definition}`;
 

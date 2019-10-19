@@ -9,65 +9,62 @@ import { Rendezvous } from '../../common/typed_event';
 
 export const loading = new Rendezvous<boolean>();
 
-export async function getReverseMappings(
-  doc: models.Doc
-): Promise<models.Doc[]> {
-  const outbound = Object.values(doc)
-    .filter(v => Array.isArray(v))
-    .flat()
-    .filter(models.isRef)
-    .map(r => r.ref);
-  const hashed = leveldb.hash(doc.id);
+export async function getReverseMappings({
+  topic,
+  metadata,
+}: models.Payload): Promise<models.Payload[]> {
+  const outbound = models.getAllRefs(topic).map(r => r.ref);
+  const hashed = leveldb.hash(metadata.id);
   const glob = await Promise.all(
     Object.values(leveldb.topics.idx).map(idx => idx.get(hashed))
   );
 
   return glob
     .flat()
-    .filter(d => d.stale_at === undefined)
-    .filter(d => outbound.indexOf(d.id) === -1);
+    .filter(d => d.metadata.stale_at === undefined)
+    .filter(d => outbound.indexOf(d.metadata.id) === -1);
 }
 
-export async function getTopic(topicKey: string): Promise<models.Doc | void> {
-  return annotateErrors({ topicKey }, () => leveldb.topics.get(topicKey)).catch(
-    err => {
-      if (err.name === 'NotFoundError' && err.details) {
-        if (loading.isPending()) {
-          return loading.then(() => getTopic(topicKey));
-        } else {
-          console.log({ error: err.message, ...err.details });
-        }
+export async function getTopic(
+  topicKey: string
+): Promise<models.Payload | void> {
+  return annotateErrors({ topicKey }, async () =>
+    leveldb.topics.get(topicKey)
+  ).catch(err => {
+    if (err.name === 'NotFoundError' && err.details) {
+      if (loading.isPending()) {
+        return loading.then(() => getTopic(topicKey));
       } else {
-        reportError(err);
+        console.log({ error: err.message, ...err.details });
       }
+    } else {
+      reportError(err);
     }
-  );
-}
-
-export async function getNotes(topicId: string): Promise<models.Note[]> {
-  const notesLevelDB = leveldb.notes.sub(topicId);
-  return notesLevelDB.getAll();
+  });
 }
 
 export async function addNote(topicId: string, text: string) {
   if (topicId === 'index') {
     topicId = 'inbox';
   }
-
-  const lastSeq = await getLastSeq();
-  const notesLevelDB = leveldb.notes.sub(topicId);
+  text = text.trim();
   const id = cuid();
-  const payload = {
-    _id: `$/queue/${topicId}/${id}`,
-    topic_id: topicId,
-    broader: [topicId],
-    seq: lastSeq,
-    created_at: Date.now(),
-    id,
-    text: text.trim(),
-  } as models.NewNote;
+  const payload: models.Update = {
+    _id: topicToDocID(id),
+    metadata: { id, created_at: Date.now() },
+    topic: {
+      broader: [{ ref: topicId }],
+    },
+  };
+  if (text.startsWith('http')) {
+    payload.topic.link = text;
+  } else {
+    payload.topic.text = text;
+  }
 
-  await notesLevelDB.put(payload.id, payload, { writeBatch: true });
+  await leveldb.uploads.put(id, payload);
+  await leveldb.topics.put(id, payload);
+  await leveldb.write();
 
   if (navigator.onLine) {
     const remoteDb = getRemoteDb();
@@ -107,52 +104,9 @@ async function isConfigured(): Promise<boolean> {
 }
 
 export async function uploadNotes(sourceDb: PouchDB.Database) {
-  await leveldb.notes.forEach({}, async (k, doc) => {
-    const docId = doc.text.startsWith('http') ? doc._id : topicToDocID(doc.id);
-
-    if (docId === undefined) {
-      return reportError(new Error('doc is missing _id'), {
-        file: 'db',
-        fn: 'uploadNotes',
-        doc,
-      });
-    }
-
-    const existing = await sourceDb
-      .get(docId)
-      .catch(async (e: PouchDB.Core.Error) => {
-        if (e.status !== 404) {
-          reportError(e, {
-            file: 'db',
-            fn: 'uploadNotes',
-            doc,
-          });
-
-          return e;
-        }
-
-        if (e.reason === 'deleted') {
-          await leveldb.notes.sub(doc.topic_id).del(doc.id);
-          return e;
-        }
-
-        return;
-      });
-
-    if (existing) {
-      console.log({
-        file: 'db',
-        fn: 'uploadNotes',
-        at: 'skip',
-        doc,
-        existing,
-      });
-    } else {
-      await attemptNoteUpload(doc, sourceDb);
-    }
+  await leveldb.uploads.forEach({}, async (k, doc) => {
+    await attemptNoteUpload(doc, sourceDb);
   });
-
-  await leveldb.write();
 }
 
 export async function initialize(): Promise<boolean> {
@@ -198,7 +152,7 @@ async function syncToLevelDB(sourceDb: PouchDB.Database) {
 
 async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
   const { rows, update_seq: resultSequence } = await sourceDb.allDocs<
-    models.Doc
+    models.Payload
   >({
     include_docs: true,
     startkey: `$/topics/`,
@@ -226,7 +180,7 @@ async function updateLevelDB(
 ): Promise<void> {
   const inner = async (lastSeq: string | number) => {
     const { last_seq: resultLastSeq, results } = await sourceDb.changes<
-      models.CouchDocTypes
+      models.Payload
     >({
       include_docs: true,
       since: lastSeq,
@@ -242,10 +196,11 @@ async function updateLevelDB(
           return;
         } else if (change.deleted) {
           await leveldb.topics.del(lastSlashItem(change.id));
-        } else if (change.doc && change.doc.id) {
-          await leveldb.topics.put(lastSlashItem(change.id), stripDoc(
-            change.doc
-          ) as models.Doc);
+        } else if (change.doc && change.doc.metadata) {
+          await leveldb.topics.put(
+            lastSlashItem(change.id),
+            stripDoc(change.doc)
+          );
         }
       })
     );
@@ -312,26 +267,19 @@ async function getLastSeq(): Promise<number | string | undefined> {
 }
 
 async function attemptNoteUpload(
-  note: models.Note,
+  payload: models.Create<models.Payload>,
   sourceDb: PouchDB.Database
 ) {
-  const { id, text, topic_id, created_at } = note;
-
-  if (text.startsWith('http')) {
-    await sourceDb.put(note);
-  } else {
-    const topicDoc = {
-      _id: topicToDocID(id),
-      id,
-      broader: [{ ref: topic_id }],
-      text,
-      created_at,
-    } as models.DocUpdate;
-    await sourceDb.put(topicDoc); /// remove index from the related of any note that has another related
-    await leveldb.topics.put(lastSlashItem(topicDoc._id), stripDoc(topicDoc));
-    await leveldb.notes.sub(topic_id).del(id);
-    await leveldb.write();
+  try {
+    await sourceDb.put(payload);
+  } catch (e) {
+    if (e.status !== 409) {
+      reportError(e);
+      return;
+    }
   }
+
+  await leveldb.uploads.del(payload.metadata.id, { writeBatch: true });
 }
 
 function lastSlashItem(docId: string) {
@@ -342,11 +290,11 @@ function reverseSlashes(v: string) {
   return v.split('/').reverse();
 }
 
-function stripDoc<D extends {}>(doc: PouchDB.Core.PutDocument<D>): D {
-  delete doc._id;
-  delete doc._rev;
-
-  return doc;
+function stripDoc({
+  topic,
+  metadata,
+}: models.Create<models.Payload>): models.Payload {
+  return { topic, metadata };
 }
 
 function topicToDocID(topicID: string): string {

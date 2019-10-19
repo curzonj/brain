@@ -102,7 +102,7 @@ class LevelWrapper<V, IDXRS extends Indexers<V>> {
   }
 
   async getAll(options: AbstractIteratorOptions = {}): Promise<V[]> {
-    const list = [] as V[];
+    const list: V[] = [];
 
     await this.forEach(options, (k, v) => {
       list.push(v);
@@ -177,7 +177,7 @@ class Index<V> {
   }
 
   async getAll(options: AbstractIteratorOptions): Promise<V[]> {
-    const list = [] as V[];
+    const list: V[] = [];
 
     await this.forEach(options, (k, v) => {
       list.push(v);

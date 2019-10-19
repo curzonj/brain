@@ -13,19 +13,19 @@ const batched = batching<any, string>(
   levelup(encoding<string, any>(leveljsStore, { valueEncoding: 'id' }))
 );
 const base = wrap(batched.db);
-const codeStorageVersion = 6;
+const codeStorageVersion = 7;
 
 export const write = batched.write;
 
 const hl: (
-  f: (d: models.Doc) => undefined | models.Ref | models.Ref[]
-) => Indexer<models.Doc> = fn => doc =>
-  [fn(doc)]
+  f: (d: models.Topic) => undefined | models.Ref | models.Ref[]
+) => Indexer<models.Payload> = fn => doc =>
+  [fn(doc.topic)]
     .flat()
     .filter(k => k && k.ref)
     .map(k => k.ref)
     .map(hash);
-export const topics = base.subIndexed<models.Doc>('topics')({
+export const topics = base.subIndexed<models.Payload>('topics')({
   src: hl(d => (models.isRef(d.src) ? d.src : undefined)),
   related: hl(d => d.related),
   narrower: hl(d => d.narrower),
@@ -36,9 +36,8 @@ export const topics = base.subIndexed<models.Doc>('topics')({
   isA: hl(d => d.isA),
 });
 
+export const uploads = base.sub<models.Create<models.Payload>>('uploads');
 export const configs = base.sub<any>('configs');
-
-export const notes = base.sub<models.NewNote>('notes');
 
 export async function isStorageSchemaCurrent(): Promise<boolean> {
   const value = await configs

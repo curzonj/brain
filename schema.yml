@@ -1,13 +1,22 @@
 definitions:
-  editor:
-    propertyNames:
-      $ref: "#/definitions/validIdentifier"
-    additionalProperties:  
-      $ref: "#/definitions/editorNode"
-  editorNode:
+  payload:
     type: object
+    required: [_id,metadata,topic]
     additionalProperties: false
-    allOf: &editorNodeAllOf
+    properties:
+      _id:
+        type: string
+      _rev:
+        type: string
+      _deleted:
+        type: boolean
+        enum: [true]
+      metadata:
+        $ref: "#/definitions/topicMetadata"
+      topic:
+        $ref: "#/definitions/topic"
+  requiredFields:
+    allOf:
       - anyOf:
           - required: [title]
           - required: [text]
@@ -17,7 +26,24 @@ definitions:
           - required: [broader]
           - required: [link]
           - required: [src]
-    properties: &editorNodeProperties
+  topicMetadata:
+    type: object
+    additionalProperties: false
+    required: [id,created_at]
+    properties:
+      id:
+        allOf:
+          - $ref: "#/definitions/validIdentifier"
+      created_at:
+        type: number
+      stale_at:
+        type: number
+  topic:
+    type: object
+    additionalProperties: false
+    allOf:
+      - $ref: "#/definitions/requiredFields"
+    properties: &topicProperties
       title:
         type: string
         pattern: "^[^/:]+$"
@@ -30,71 +56,42 @@ definitions:
         minItems: 1
         items:
           type: string
-      stale:
-        type: boolean
       links:
-        $ref: "#/definitions/linkList"
+        type: array
+        uniqueItems: true
+        minItems: 1
+        items:
+          oneOf:
+            - $ref: "#/definitions/namedRef"
+            - type: string
+              format: uri
+            - type: object
+              additionalProperties: false
+              required:
+                - search
+              properties:
+                search:
+                  type: string
       src:
-        $ref: "#/definitions/src"
+        oneOf:
+          - type: string
+            format: uri
+          - $ref: "#/definitions/namedRef"
       text:
         $ref: "#/definitions/plainText"
       props:
-        $ref: "#/definitions/props"
+        type: object
+        additionalProperties: false
+        properties:
+          twitter:
+            $ref: "#/definitions/plainText"
+          quantity:
+            $ref: "#/definitions/plainText"
+          date:
+            type: string
+            pattern: "^20\\d{2}-\\d{2}-\\d{2}$"
       isA:
         $ref: "#/definitions/namedRefList"
-      broader: #skos
-        $ref: "#/definitions/namedRefList"
-      narrower: #skos
-        $ref: "#/definitions/namedRefList"
-      collection: #skos:collection/member
-        $ref: "#/definitions/namedRefListInput"
-      next:
-        $ref: "#/definitions/namedRefListInput"
-      later:
-        $ref: "#/definitions/namedRefListInput"
-      related:
-        $ref: "#/definitions/namedRefList"
-      notes:
-        $ref: "#/definitions/namedRefListInput"
-      quotes:
-        $ref: "#/definitions/namedRefList"
-      backrefs:
-        $ref: "#/definitions/namedRefList"
-  couchDeletion:
-    type: object
-    required:
-      - _id
-      - _rev
-      - _deleted
-    properties:
-      _deleted:
-        type: boolean
-        enum: [true]
-      _id:
-        type: string
-      _rev:
-        type: string
-  couchDocument:
-    type: object
-    additionalProperties: false
-    allOf: *editorNodeAllOf
-    required:
-      - _id
-      - id
-    properties:
-      <<: *editorNodeProperties
-      _id:
-        type: string
-      _rev:
-        type: string
-      id:
-        allOf:
-          - $ref: "#/definitions/validIdentifier"
-      created_at:
-        type: number
-      stale: false
-      stale_at:
-        type: number
       broader:
         $ref: "#/definitions/namedRefList"
       narrower:
@@ -107,12 +104,7 @@ definitions:
         $ref: "#/definitions/namedRefList"
       related:
         $ref: "#/definitions/namedRefList"
-      backrefs: false
-      quotes: false
-      notes: false
     dependencies:
-      text: [created_at]
-      created_at: [text]
       collection:
         properties:
           narrower: false
@@ -123,60 +115,46 @@ definitions:
       isA:
         properties:
           collection: false
-  existingDocument:
-    allOf:
-      - $ref: "#/definitions/couchDocument"
-      - required: [_rev]
-  couchTopicUpdate:
-    oneOf:
-      - $ref: "#/definitions/couchDeletion"
-      - $ref: "#/definitions/couchDocument"
-  stringList:
-    type: array
-    uniqueItems: true
-    minItems: 1
-    items:
-      $ref: "#/definitions/plainText"
-  props:
+  editor:
+    propertyNames:
+      $ref: "#/definitions/validIdentifier"
+    additionalProperties:  
+      $ref: "#/definitions/editorNode"
+  editorNode:
     type: object
     additionalProperties: false
+    allOf:
+      - $ref: "#/definitions/requiredFields"
     properties:
-      twitter:
-        $ref: "#/definitions/plainText"
-      quantity:
-        $ref: "#/definitions/plainText"
-      date:
-        type: string
-        pattern: "^20\\d{2}-\\d{2}-\\d{2}$"
-  src:
-    oneOf:
-      - type: string
-        format: uri
-      - $ref: "#/definitions/namedRef"
-  linkList:
-    type: array
-    uniqueItems: true
-    minItems: 1
-    items:
-      $ref: "#/definitions/maybeLabeledLink"
-  maybeLabeledLink:
-    oneOf:
-      - $ref: "#/definitions/namedRef"
-      - type: string
-        format: uri
-      - type: object
-        additionalProperties: false
-        required:
-          - search
-        properties:
-          search:
-            type: string
+      <<: *topicProperties
+      stale:
+        type: boolean
+        enum: [true]
+      collection: #skos:collection/member
+        $ref: "#/definitions/namedRefListInput"
+      next:
+        $ref: "#/definitions/namedRefListInput"
+      later:
+        $ref: "#/definitions/namedRefListInput"
+      notes:
+        $ref: "#/definitions/namedRefListInput"
+      quotes:
+        $ref: "#/definitions/namedRefList"
+      backrefs:
+        $ref: "#/definitions/namedRefList"
+  editorInputNode:
+    type: object
+    allOf:
+      - $ref: "#/definitions/editorNode"
+    properties:
+      broader: false
+      stale: false
   namedRefListInput:
     type: array
     minItems: 1
     items:
       oneOf:
-        - $ref: "#/definitions/editorNode"
+        - $ref: "#/definitions/editorInputNode"
         - $ref: "#/definitions/plainText"
         - $ref: "#/definitions/namedRef"
   namedRefList:
