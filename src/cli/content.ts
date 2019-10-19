@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { getDB } from './db';
+import { getDB, remote } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
 import { schemaSelector } from './schema';
@@ -36,6 +36,8 @@ export async function applyChanges(
 
   const db = await getDB();
   await db.bulkDocs(changes);
+  console.log('Replicating...');
+  await db.sync(remote);
   await dumpJSON();
 }
 

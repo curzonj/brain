@@ -4,7 +4,6 @@ import { dumpJSON } from '../cli/content';
 
 class SyncCommand extends Command {
   public async run() {
-    console.log('Replicating...');
     const db = await getDB();
     await db.sync(remote);
     await dumpJSON();
