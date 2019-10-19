@@ -124,11 +124,14 @@ export function unstackNestedDocuments(
 
       docEntries.push(newTopic);
 
-      return newTopic.id;
+      return { ref: newTopic.id };
     });
   }
 
   ['notes', 'next', 'later', 'collection'].forEach(inner);
+
+  // tag: specialAttributes
+  delete doc.notes;
 }
 
 export function findMissingReferences(

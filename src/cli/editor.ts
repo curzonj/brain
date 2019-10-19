@@ -219,9 +219,6 @@ async function computeUpdates(
       const docEntries = [] as models.DocUpdate[];
       unstackNestedDocuments(newTopicContent, docEntries);
 
-      // tag: specialAttributes
-      delete newTopicContent.notes;
-
       docEntries.push(newTopicContent);
 
       return docEntries;

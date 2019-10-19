@@ -25,10 +25,13 @@ export async function setupRewriters(
 
 export const rewriters: RewriterSet = {
   resetID(doc) {
-    const expected = topicToDocID(doc.id);
-    if (doc._id === expected) return;
+    let docId = doc.id;
+    if (docId.startsWith("/"))
+      docId = doc.id.slice(1)
+    const expected = topicToDocID(docId);
+    if (doc._id === expected && docId === doc.id) return;
     return [
-      { ...omit(doc, ['_id', '_rev']), _id: expected } as models.DocUpdate,
+      { ...omit(doc, ['_id', 'id', '_rev']), _id: expected, id: docId } as models.DocUpdate,
       { ...doc, _deleted: true },
     ];
   },
