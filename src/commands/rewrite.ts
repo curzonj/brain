@@ -23,12 +23,12 @@ class RewriteCommand extends Command {
     const modified: models.Update[] = [];
 
     for (let doc of Object.values(allDocs)) {
-      const result = rewriter(cloneDeep(doc), opts);
+      const theClone = cloneDeep(doc);
+      const result = rewriter(theClone, opts) || theClone;
 
-      if (!result) continue;
       if (Array.isArray(result)) {
         if (result.length === 0) continue;
-      } else if (result === doc || deepEqual(doc, result)) {
+      } else if (deepEqual(doc, result)) {
         continue;
       }
 
@@ -56,6 +56,11 @@ class RewriteCommand extends Command {
       return;
     }
 
+    if (flagArgs.dry) {
+      console.log(`Modified ${modified.length} documents. Dry run only.`);
+      return;
+    }
+
     const ok = await cli.confirm(
       `Modified ${modified.length} documents. Upload results?`
     );
@@ -71,7 +76,8 @@ RewriteCommand.args = [{ name: 'script' }];
 RewriteCommand.description = `Rewrite all the docs with a script`;
 
 RewriteCommand.flags = {
-  force: flags.boolean({ char: 'f' }),
+  force: flags.boolean(),
+  dry: flags.boolean(),
 };
 
 module.exports = RewriteCommand;

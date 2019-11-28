@@ -1,39 +1,23 @@
 import leveljs from 'level-js';
 import encoding from 'encoding-down';
+import  memdown from 'memdown';
 import levelup from 'levelup';
-import md5 from 'blueimp-md5';
-import { wrap, Indexer } from '../../leveldown';
+import { wrap } from '../../leveldown';
 import batching from '../../leveldown/batch';
 import * as models from '../../common/models';
-import { ComplexError } from '../../common/errors';
 
-const leveljsStore = leveljs('wiki');
+const leveljsStore = typeof indexedDB === 'undefined' ? memdown() : leveljs('wiki');
 
 const batched = batching<any, string>(
   levelup(encoding<string, any>(leveljsStore, { valueEncoding: 'id' }))
 );
 const base = wrap(batched.db);
-const codeStorageVersion = 7;
+const codeStorageVersion = 8;
 
 export const write = batched.write;
 
-const hl: (
-  f: (d: models.Topic) => undefined | models.Ref | models.Ref[]
-) => Indexer<models.Payload> = fn => doc =>
-  [fn(doc.topic)]
-    .flat()
-    .filter(k => k && k.ref)
-    .map(k => k.ref)
-    .map(hash);
 export const topics = base.subIndexed<models.Payload>('topics')({
-  src: hl(d => (models.isRef(d.src) ? d.src : undefined)),
-  related: hl(d => d.related),
-  narrower: hl(d => d.narrower),
-  broader: hl(d => d.broader),
-  collection: hl(d => d.collection),
-  next: hl(d => d.next),
-  later: hl(d => d.later),
-  isA: hl(d => d.isA),
+  backrefs: p => models.getAllRefs(p.topic).map(r => r.ref),
 });
 
 export const uploads = base.sub<models.Create<models.Payload>>('uploads');
@@ -51,11 +35,4 @@ export async function resetStorageSchema() {
   await leveljsStore.store('readwrite').clear();
   await configs.put('storageVersion', codeStorageVersion);
   await write();
-}
-
-export function hash(s: string) {
-  if (s.startsWith('/')) {
-    throw new ComplexError('invalid topicId', { topicId: s });
-  }
-  return md5(s);
 }

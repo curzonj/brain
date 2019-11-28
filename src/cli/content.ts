@@ -99,11 +99,14 @@ export function findMissingReferences(
   );
 }
 
-export function buildReverseMappings(allDocs: models.Map<models.Payload>) {
+export function buildReverseMappings(
+  allDocs: models.Map<models.Payload>,
+  excludeDeprecated: boolean = false
+) {
   return Object.values(allDocs).reduce(
     (acc: models.Map<models.Payload[]>, doc: models.Payload) => {
       models
-        .getAllRefs(doc.topic)
+        .getAllRefs(doc.topic, excludeDeprecated)
         .forEach(r => (acc[r.ref] = acc[r.ref] || []).push(doc));
       return acc;
     },

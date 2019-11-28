@@ -24,6 +24,7 @@ definitions:
       - anyOf:
           - required: [title]
           - required: [broader]
+          - required: [actionOn]
           - required: [link]
           - required: [src]
   topicMetadata:
@@ -39,6 +40,11 @@ definitions:
         minimum: 1
       stale_at:
         type: number
+      nextAction:
+        $ref: "#/definitions/namedRef"
+      firstAction:
+        type: boolean
+        enum: [true]
   topic:
     type: object
     additionalProperties: false
@@ -91,10 +97,14 @@ definitions:
           date:
             type: string
             pattern: "^20\\d{2}-\\d{2}-\\d{2}$"
-      isA:
-        $ref: "#/definitions/namedRefList"
+      type:
+        $ref: "#/definitions/namedRef"
       broader:
         $ref: "#/definitions/namedRefList"
+      actionOn:
+        allOf:
+          - $ref: "#/definitions/namedRefList"
+          - maxItems: 1
       narrower:
         $ref: "#/definitions/namedRefList"
       collection:
@@ -109,11 +119,11 @@ definitions:
       collection:
         properties:
           narrower: false
-          isA: false
+          type: false
       narrower:
         properties:
           collection: false
-      isA:
+      type:
         properties:
           collection: false
   editor:
@@ -139,6 +149,8 @@ definitions:
         $ref: "#/definitions/namedRefListInput"
       notes:
         $ref: "#/definitions/namedRefListInput"
+      tasks:
+        $ref: "#/definitions/namedRefList"
       quotes:
         $ref: "#/definitions/namedRefList"
       backrefs:

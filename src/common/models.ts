@@ -14,26 +14,17 @@ export interface DumbProps {
   twitter?: string;
   date?: string;
 }
-
-export type FieldTypes =
-  | Ref[]
-  | string
-  | undefined
-  | boolean
-  | Link
-  | Link[]
-  | DumbProps;
-
 export interface TopicFields {
   title?: string;
   link?: string;
   aka?: string[];
   links?: Link[];
   src?: string | Ref;
+  type?: Ref;
   text?: string;
   related?: Ref[];
   broader?: Ref[];
-  isA?: Ref[];
+  actionOn?: Ref[];
   narrower?: Ref[];
   props?: DumbProps;
 }
@@ -42,14 +33,14 @@ export type Topic = TopicFields & {
   collection?: Ref[];
   next?: Ref[];
   later?: Ref[];
-  //[key: string]: FieldTypes; // BURN IT
 };
 export type TopicKeys = keyof Topic;
 
-export interface ReverseMappings {
+export interface Backrefs {
   notes?: Ref[];
   backrefs?: Ref[];
   quotes?: Ref[];
+  tasks?: Ref[];
 }
 export type EditorRefInput = Ref | string | EditorTopic;
 export interface EditorTopic extends TopicFields {
@@ -58,9 +49,9 @@ export interface EditorTopic extends TopicFields {
   next?: EditorRefInput[];
   later?: EditorRefInput[];
   notes?: EditorRefInput[];
+  tasks?: Ref[];
   backrefs?: Ref[];
   quotes?: Ref[];
-  //[key: string]: FieldTypes | EditorRefInput[];
 }
 export type EditorTopicKeys = keyof EditorTopic;
 
@@ -68,6 +59,8 @@ export interface TopicMetadata {
   id: string;
   created_at: number;
   stale_at?: number;
+  nextAction?: Ref;
+  firstAction?: boolean;
 }
 
 export interface Payload {
@@ -81,8 +74,27 @@ export type Update<T = Payload> = PouchDB.Core.PutDocument<T> &
 export type Create<T = Payload> = PouchDB.Core.PutDocument<T>;
 export type Map<T> = Record<string, T>;
 
-export function getAllRefs<T extends TopicFields>(doc: T): Ref[] {
-  return Object.values(doc).flatMap(item => [item].flat().filter(isRef));
+export function getAllRefs<T extends TopicFields>(
+  doc: T,
+  excludeDeprecated: boolean = false
+): Ref[] {
+  return Object.keys(doc).flatMap(key => {
+    const item = (doc as any)[key];
+    if (excludeDeprecated && ['next', 'later'].indexOf(key) > -1) return [];
+    return [item].flat().filter(isRef);
+  });
+}
+
+export function uniqueRefs(list: Ref[]): Ref[] {
+  const hash: Record<string, Ref> = list.reduce(
+    (acc, ref) => {
+      acc[ref.ref] = ref;
+      return acc;
+    },
+    {} as Record<string, Ref>
+  );
+
+  return Object.values(hash);
 }
 
 export function isRef(l: any): l is Ref {
@@ -91,14 +103,23 @@ export function isRef(l: any): l is Ref {
   return typeof (l as Ref).ref === 'string';
 }
 
-export function isSearchLink(l: any): l is SearchLink {
-  if (typeof l === 'string') {
-    return false;
-  }
-
-  return typeof (l as SearchLink).search === 'string';
+export function hasRef(
+  list: undefined | Payload[] | Ref[],
+  r: Payload | Ref | string
+): boolean {
+  if (!list) return false;
+  const idList: string[] = (list as (Payload | Ref)[]).map((l: Payload | Ref) =>
+    isRef(l) ? l.ref : l.metadata.id
+  );
+  const id: string = isRef(r)
+    ? r.ref
+    : typeof r === 'string'
+    ? r
+    : r.metadata.id;
+  return idList.indexOf(id) > -1;
 }
 
-export function isProps(k: string, o: FieldTypes): o is DumbProps {
-  return k === 'props';
+export function deriveTitle(n: Topic): string {
+  if (!n) return 'Missing Page';
+  return n.title || n.link || 'Note';
 }

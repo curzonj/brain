@@ -1,5 +1,6 @@
 import { getTopic, getReverseMappings, loading as dataLoading } from './data';
 import * as models from '../../common/models';
+import { deriveTitle } from '../../common/models';
 import { annotateErrors } from '../../common/errors';
 
 type FieldsAndHeadings = [models.TopicKeys, string][];
@@ -293,9 +294,4 @@ async function maybeResolveSrc(src: undefined | models.Link) {
   } else {
     return src;
   }
-}
-
-function deriveTitle(n: models.Topic): string {
-  if (!n) return 'Missing Page';
-  return n.title || n.link || 'Note';
 }

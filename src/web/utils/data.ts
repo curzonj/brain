@@ -14,13 +14,9 @@ export async function getReverseMappings({
   metadata,
 }: models.Payload): Promise<models.Payload[]> {
   const outbound = models.getAllRefs(topic).map(r => r.ref);
-  const hashed = leveldb.hash(metadata.id);
-  const glob = await Promise.all(
-    Object.values(leveldb.topics.idx).map(idx => idx.get(hashed))
-  );
+  const backrefs = await leveldb.topics.idx.backrefs.get(metadata.id);
 
-  return glob
-    .flat()
+  return backrefs
     .filter(d => d.metadata.stale_at === undefined)
     .filter(d => outbound.indexOf(d.metadata.id) === -1);
 }

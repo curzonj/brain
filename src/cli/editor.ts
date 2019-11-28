@@ -166,7 +166,7 @@ async function computeUpdates(
         broader = newTopicContent.broader = newTopicContent.broader || [];
       }
 
-      if (!broader.some(b => b.ref === k)) broader.push({ ref: k });
+      if (!models.hasRef(broader, k)) broader.push({ ref: k });
     });
 
     // For each note removed from this topic, remove this topic from the note's broader list
@@ -323,6 +323,7 @@ export function sortedYamlDump(input: object): string {
         'text',
         'src',
         'props',
+        'tasks',
         'next',
         'later',
         'related',
@@ -353,10 +354,96 @@ export function sortedYamlDump(input: object): string {
   });
 }
 
+function backrefType(targetId: string, topic: models.Topic): BackrefKey {
+  if (models.hasRef(topic.actionOn, targetId)) {
+    return 'tasks';
+  } else if (topic.title === undefined && !models.isRef(topic.src)) {
+    return 'notes';
+  } else if (models.isRef(topic.src) && topic.src.ref === targetId) {
+    return 'quotes';
+  } else {
+    return 'backrefs';
+  }
+}
+
+function orderTaskList(
+  targetId: string,
+  tasks: models.Payload[]
+): models.Payload[] {
+  const first = tasks.find(t => t.metadata.firstAction);
+  if (!first) {
+    throw new ComplexError('missing firstAction', {
+      targetId,
+      availableTasks: tasks,
+    });
+  }
+
+  const append = (
+    acc: models.Payload[],
+    p: models.Payload
+  ): models.Payload[] => {
+    acc.push(p);
+    const nextAction = p.metadata.nextAction;
+    if (nextAction) {
+      const nextPayload = tasks.find(t => t.metadata.id === nextAction.ref);
+      if (!nextPayload) {
+        throw new ComplexError('broken task chain', {
+          currentLink: p,
+          availableTasks: tasks,
+        });
+      }
+      return append(acc, nextPayload);
+    } else {
+      return acc;
+    }
+  };
+  const sorted = append([], first);
+  if (targetId === 'cjyvrubdh0000y5tnehc7bzxm') {
+    console.log(sorted.map(p => p.metadata.id));
+  }
+  return sorted;
+}
+
+type BackrefKey = keyof models.Backrefs;
+type BucketedBackrefs = Record<BackrefKey, models.Payload[]>;
+function buildBackrefs(k: string, v: models.Payload[]): models.Backrefs {
+  const ret: models.Backrefs = {};
+  const bucketed: BucketedBackrefs = v.reduce(
+    (acc: BucketedBackrefs, payload: models.Payload): BucketedBackrefs => {
+      const bucket = backrefType(k, payload.topic);
+      const list: models.Payload[] = (acc[bucket] = acc[bucket] || []);
+      list.push(payload);
+      return acc;
+    },
+    {} as BucketedBackrefs
+  );
+
+  if (bucketed.notes) {
+    bucketed.notes = bucketed.notes.sort(({ metadata: a }, { metadata: b }) => {
+      if (!a.created_at || !b.created_at) return 0;
+      if (a.created_at > b.created_at) return -1;
+      if (a.created_at < b.created_at) return 1;
+      return 0;
+    });
+  } else if (bucketed.tasks) {
+    bucketed.tasks = orderTaskList(k, bucketed.tasks);
+  }
+
+  Object.entries(bucketed).forEach(([k, v]) => {
+    let ids = v.map(({ metadata }) => metadata.id);
+    if (['notes', 'tasks'].indexOf(k) === -1) ids = ids.sort();
+    ret[k as BackrefKey] = ids
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .map((ref): models.Ref => ({ ref }));
+  });
+
+  return ret;
+}
+
 function buildSortedReverseMappings(
   allDocs: models.Map<models.Payload>
-): Record<string, models.ReverseMappings> {
-  const reverse = buildReverseMappings(allDocs);
+): Record<string, models.Backrefs> {
+  const reverse = buildReverseMappings(allDocs, true);
   return Object.fromEntries(
     Object.entries(reverse)
       .map(([referencedId, list]): [string, models.Payload[]] => [
@@ -364,46 +451,12 @@ function buildSortedReverseMappings(
         list.filter(
           ({ metadata: referencingDoc }) =>
             !referencingDoc.stale_at &&
-            // This removes any backrefs that are already included in some list field of the referenced doc
-            (!reverse[referencingDoc.id] ||
-              !reverse[referencingDoc.id].some(
-                ({ metadata }) => metadata.id === referencedId
-              ))
+            // This removes any backrefs that are already included in
+            // some list field of the referenced doc
+            !models.hasRef(reverse[referencingDoc.id], referencedId)
         ),
       ])
-      .map(([k, v]) => {
-        const notes = v
-          .filter(
-            ({ topic }) =>
-              topic.title === undefined &&
-              (!models.isRef(topic.src) || topic.src.ref !== k)
-          )
-          .sort(({ metadata: a }, { metadata: b }) => {
-            if (!a.created_at || !b.created_at) return 0;
-            if (a.created_at > b.created_at) return -1;
-            if (a.created_at < b.created_at) return 1;
-            return 0;
-          })
-          .map(({ metadata }) => metadata.id)
-          .map(ref => ({ ref }));
-        const quotes = v
-          .filter(({ topic }) => models.isRef(topic.src) && topic.src.ref === k)
-          .map(({ metadata }) => metadata.id)
-          .sort()
-          .map(ref => ({ ref }));
-        const backrefs = v
-          .filter(({ topic }) => topic.title !== undefined)
-          .map(({ metadata }) => metadata.id)
-          .sort()
-          .map(ref => ({ ref }));
-
-        const ret: models.ReverseMappings = {};
-        if (notes.length > 0) ret.notes = notes;
-        if (quotes.length > 0) ret.quotes = quotes;
-        if (backrefs.length > 0) ret.backrefs = backrefs;
-
-        return [k, ret];
-      })
+      .map(([k, v]) => [k, buildBackrefs(k, v)])
   );
 }
 

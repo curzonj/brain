@@ -70,7 +70,7 @@
     "blueimp-md5": "^2.10.0",
     "eslint-config-prettier": "^4.2.0",
     "eslint-plugin-prettier": "^3.1.0",
-    "level-js": "^4.0.1",
+    "level-js": "^5.0.0",
     "level-promise": "^2.1.1",
     "levelup": "^4.1.0",
     "pouchdb-adapter-memory": "^7.1.1",

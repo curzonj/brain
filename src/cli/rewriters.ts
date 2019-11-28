@@ -1,40 +1,141 @@
 import * as models from '../common/models';
 import { buildReverseMappings } from './content';
-import { pick, omit } from 'lodash';
+import { ComplexError } from '../common/errors';
 
 type Rewriter = (
   d: models.Existing,
   opts: SetupObject
-) => models.Update[] | models.Update | undefined;
+) => models.Update[] | models.Update | undefined | void;
 interface RewriterSet {
   [key: string]: Rewriter;
 }
 
 export interface SetupObject {
   allDocs: models.Map<models.Existing>;
-  //reverse: models.Map<models.Payload[]>;
+  reverse: models.Map<models.Payload[]>;
 }
 export async function setupRewriters(
   allDocs: models.Map<models.Existing>
 ): Promise<SetupObject> {
   return {
     allDocs,
-    //reverse: buildReverseMappings(allDocs),
+    reverse: buildReverseMappings(allDocs),
   };
 }
 
+type SlicedField<T extends string> = { [key in T]?: models.Ref[] };
+function filterField<F extends string>(
+  src: F,
+  dest: F,
+  topic: SlicedField<F>,
+  matcher: (r: models.Ref) => boolean
+) {
+  const list: undefined | models.Ref[] = topic[src];
+  if (!list) return;
+  const newSrc: models.Ref[] = list.filter(r => !matcher(r));
+  const newDest: models.Ref[] = list.filter(matcher);
+  if (newSrc.length === 0) {
+    delete topic[src];
+  } else {
+    topic[src] = newSrc;
+  }
+  if (newDest.length > 0) {
+    const currentDest: undefined | models.Ref[] = topic[dest];
+    if (!currentDest) {
+      topic[dest] = newDest;
+    } else {
+      newDest
+        .filter(r => !models.hasRef(currentDest, r))
+        .forEach(r => currentDest.push(r));
+    }
+  }
+}
+
 export const rewriters: RewriterSet = {
-  createdAt(doc) {
-    if (doc.metadata.created_at) return;
-    doc.metadata.created_at = 1559347200;
-    return doc;
+  validateTodoLists(doc, { allDocs, reverse }) {
+    const todoListRefs = [doc.topic.next, doc.topic.later]
+      .flat()
+      .filter(models.isRef)
+      .map(d => d.ref)
+      .sort();
+    if (todoListRefs.length === 0) return;
+    const reverseTodos = reverse[doc.metadata.id].filter(d =>
+      models.hasRef(d.topic.actionOn, doc)
+    );
+    const reverseRefs = reverseTodos.map(d => d.metadata.id).sort();
+    let mismatch = todoListRefs.length !== reverseRefs.length;
+    if (mismatch) {
+      console.dir({
+        todoListLength: todoListRefs.length,
+        reverseLength: reverseRefs.length,
+      });
+    }
+    for (let i = 0; i < todoListRefs.length; i++) {
+      if (todoListRefs[i] !== reverseRefs[i]) {
+        mismatch = true;
+        console.dir({
+          todoList: todoListRefs[i],
+          reverse: reverseRefs[i],
+        });
+      }
+    }
+    if (mismatch) console.log(`mismatch on ${doc.topic.title}`);
   },
-  nested(doc: any): models.Update {
-    return {
-      ...pick(doc, ['_id', '_rev']),
-      metadata: pick(doc, ['id', 'created_at', 'stale_at']),
-      topic: omit(doc, ['_id', '_rev', 'id', 'created_at', 'stale_at']),
-    };
+  updateActionRefs(doc, { reverse }) {
+    const { topic, metadata } = doc;
+    const actionOn: undefined | models.Payload = (
+      reverse[metadata.id] || []
+    ).find(rdoc =>
+      [rdoc.topic.next, rdoc.topic.later]
+        .flat()
+        .filter(models.isRef)
+        .some(ref => ref.ref === metadata.id)
+    );
+    if (!actionOn) {
+      if (topic.actionOn) {
+        metadata.stale_at = Date.now();
+      }
+      return;
+    }
+    filterField<'related' | 'actionOn'>(
+      'related',
+      'actionOn',
+      topic,
+      ref => actionOn.metadata.id === ref.ref
+    );
+    filterField<'broader' | 'actionOn'>(
+      'broader',
+      'actionOn',
+      topic,
+      ref => actionOn.metadata.id === ref.ref
+    );
+    if (!models.hasRef(topic.actionOn, actionOn.metadata.id)) {
+      const newActionRef = { ref: actionOn.metadata.id };
+      if (topic.actionOn) {
+        topic.actionOn.push(newActionRef);
+      } else {
+        topic.actionOn = [newActionRef];
+      }
+    }
+    const todoList = [actionOn.topic.next, actionOn.topic.later]
+      .flat()
+      .filter(models.isRef);
+    const todoListRefObj = todoList.find(r => r.ref === metadata.id);
+    if (!todoListRefObj)
+      throw new ComplexError('failed to find position', {
+        todoList,
+        metadata,
+      });
+    const position = todoList.indexOf(todoListRefObj);
+    if (position === -1)
+      throw new ComplexError('failed to find position', {
+        todoList,
+        metadata,
+        todoListRefObj,
+      });
+    if (position === 0) metadata.firstAction = true;
+    const nextAction = todoList[position + 1];
+    if (nextAction) metadata.nextAction = nextAction;
   },
 };
 
