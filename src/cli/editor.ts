@@ -226,6 +226,9 @@ async function computeChangesFromKey(
   // tag: specialAttributes
   if (oldDoc.metadata.stale_at === undefined && newContent.stale === true)
     newPayload.metadata.stale_at = Date.now();
+  // tag: specialAttributes
+  if (oldDoc.metadata.stale_at !== undefined && newContent.stale !== true)
+    delete newPayload.metadata.stale_at;
 
   // tag: specialAttributes
   if (newContent.text && !newPayload.metadata.created_at) {
@@ -573,12 +576,13 @@ export async function buildEditorStructure(): Promise<models.Map<EditorTopic>> {
       }
 
       models.getAllRefs(topic).forEach(ref => {
-        const { topic: otherDoc } = allDocs[ref.ref] || {
+        const { metadata: otherMetadata, topic: otherDoc } = allDocs[ref.ref] || {
           topic: {
             title: 'WARNING: No such ref',
           },
         };
         ref.label = otherDoc.title || otherDoc.text || otherDoc.link;
+        if (otherMetadata.stale_at) ref.stale = true;
       });
 
       acc[metadata.id] = topic;
@@ -598,6 +602,10 @@ export async function buildEditorStructure(): Promise<models.Map<EditorTopic>> {
 
 function sanitizeRewrites(result: models.Map<EditorTopic>) {
   Object.values(result).forEach((doc: EditorTopic) =>
-    models.getAllRefs(doc).forEach(ref => delete ref.label)
+    models.getAllRefs(doc).forEach(ref => {
+      Object.keys(ref).
+        filter(k => k !== 'ref').
+        forEach(k => delete (ref as any)[k])
+    })
   );
 }

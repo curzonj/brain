@@ -5,6 +5,7 @@ export interface SearchLink {
   search: string;
 }
 export interface Ref {
+  stale?: boolean;
   label?: string;
   ref: string;
 }
