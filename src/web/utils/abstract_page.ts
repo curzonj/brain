@@ -196,6 +196,7 @@ async function buildRelatedDivList(
   );
   let related = await maybePayloadsToTextObjects(bucketed.backrefs);
 
+  await maybeAddRefTextObjects(doc.topic.actionOn, related);
   await maybeAddRefTextObjects(doc.topic.related, related);
   await maybeAddRefTextObjects(doc.topic.broader, related);
 
