@@ -52,6 +52,11 @@ function filterField<F extends string>(
 }
 
 export const rewriters: RewriterSet = {
+};
+
+/*
+ * The fields are gone now so these don't compile, but they are good reference material
+ *
   validateTodoLists(doc, { allDocs, reverse }) {
     const todoListRefs = [doc.topic.next, doc.topic.later]
       .flat()
@@ -79,7 +84,12 @@ export const rewriters: RewriterSet = {
         });
       }
     }
-    if (mismatch) console.log(`mismatch on ${doc.topic.title}`);
+    if (mismatch) {
+      console.log(`mismatch on ${doc.topic.title}`);
+    } else {
+      delete doc.topic.next;
+      delete doc.topic.later;
+    }
   },
   updateActionRefs(doc, { reverse }) {
     const { topic, metadata } = doc;
@@ -137,11 +147,6 @@ export const rewriters: RewriterSet = {
     const nextAction = todoList[position + 1];
     if (nextAction) metadata.nextAction = nextAction;
   },
-};
-
-/*
- * The fields are gone now so these don't compile, but they are good reference material
- *
 relatedToBroader(doc, { allDocs }) {
   if (!doc.related) return;
   const isBroader = (r: models.Ref) => {

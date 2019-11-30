@@ -3,7 +3,7 @@ import { deepEqual } from 'fast-equals';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import * as tmp from 'tmp';
-import { pick, omit } from 'lodash';
+import { pick, omit, cloneDeep } from 'lodash';
 import cuid from 'cuid';
 
 import {
@@ -13,10 +13,12 @@ import {
   getAllDocsHash,
   buildReverseMappings,
 } from './content';
-import { getDB } from './db';
+import { getDB, DB } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
+import { buildBackrefs, BackrefKey } from '../common/content';
 import { schemaSelector } from './schema';
+import { groupBy } from './groupBy';
 
 const editorSchema = schemaSelector('editor');
 
@@ -126,6 +128,97 @@ function findMissingRefs(more: models.Ref[], less: models.Ref[]): models.Ref[] {
   return more.filter(i => !less.some(i2 => i2.ref === i.ref));
 }
 
+interface RelationshipChange {
+  op: 'add'|'remove';
+  field: 'notes';
+  target: string;
+  topicId: string;
+}
+
+// tag: specialAttributes
+function computeDerivedRelationshipChanges(changedKeys: string[], contentList: models.Map<models.EditorTopic>, newContentList: models.Map<models.EditorTopic>, ): RelationshipChange[] {
+  return changedKeys.flatMap((k: string): RelationshipChange[] => {
+    const newTopicContent = newContentList[k];
+    const newNotes = newTopicContent.notes || [];
+
+    const previousContent = contentList[k] || {};
+    const justRefNotes = newNotes.filter(models.isRef);
+    const oldNotes = (previousContent.notes || []).filter(models.isRef);
+    const added = findMissingRefs(justRefNotes, oldNotes);
+    const removed = findMissingRefs(oldNotes, justRefNotes);
+
+    // I now realize that some notes are mapped via the `related` and other fields
+    return [
+      added.map(({ref}): RelationshipChange => ({ op: "add", field: "notes", target: k, topicId: ref })),
+
+      removed.map(({ref}): RelationshipChange => ({ op: "remove", field: "notes", target: k, topicId: ref })),
+    ].flat();
+  });
+
+}
+
+async function computeChangesFromKey(db: DB, k: string, newContent: models.EditorTopic) {
+  const docId = topicToDocID(k);
+  const oldDoc = await db
+    .get(docId)
+    // tag: specialAttributes
+    .catch(() => ({
+      _id: docId,
+      metadata: { id: k, created_at: Date.now() },
+    }));
+
+  const docEntries: models.Update[] = [];
+  const newPayload: models.Update = {
+    // We clone because otherwise both objects are actually using
+    // the same metadata object and updates to it impact both and
+    // prevent us from diffing them to detect updates
+    ...cloneDeep(pick(oldDoc, ['_id', '_rev', 'metadata'])),
+    topic: decomposeEditorTopic(k, newContent, docEntries),
+  };
+
+  // tag: specialAttributes
+  if (oldDoc.metadata.stale_at === undefined && newContent.stale === true)
+    newPayload.metadata.stale_at = Date.now();
+
+  // tag: specialAttributes
+  if (newContent.text && !newPayload.metadata.created_at) {
+    newPayload.metadata.created_at = Date.now();
+  }
+
+  if (!deepEqual(oldDoc, newPayload)) docEntries.push(newPayload);
+
+  return docEntries;
+}
+
+function updateKeyForDerivedChanges(topicId: string, topic: models.EditorTopic, changes: RelationshipChange[], newContentList: models.Map<models.EditorTopic>) {
+  let list = topic.broader || [];
+  changes.forEach(change => {
+    if (change.op === 'remove') {
+      const target = newContentList[change.target];
+      const allRefs = models.getAllRefs(target);
+      // If the target still has a ref to the topic don't remove
+      // it's relationship
+      if (target && models.hasRef(allRefs, topicId)) return;
+      list = list.filter(r => r.ref !== change.target);
+    } else if (change.op === 'add') {
+      if (!models.hasRef(list, change.target)) list.push({ ref: change.target });
+    }
+  });
+
+  // If the topic was removed from everything then it is stale and the
+	// relationships are still valid
+  if (list.length > 0) {
+    topic.broader = list;
+  } else {
+    topic.stale = true;
+  }
+
+  // removed from notes
+  // removed from notes and added to a static list
+  // removed from notes and added to tasks
+  // removed from notes and added to notes on another topic
+}
+
 async function computeUpdates(
   contentList: models.Map<models.EditorTopic>,
   newContentList: models.Map<models.EditorTopic>
@@ -135,86 +228,22 @@ async function computeUpdates(
     k => !contentList[k] || !deepEqual(contentList[k], newContentList[k])
   );
 
-  // tag: specialAttributes
-  changedKeys.forEach(k => {
-    const newTopicContent = newContentList[k];
-    const newNotes = newTopicContent.notes || [];
-
-    const previousContent = contentList[k] || {};
-    const allRefs = models.getAllRefs(newTopicContent);
-    const justRefNotes = newNotes.filter(models.isRef);
-    const oldNotes = (previousContent.notes || []).filter(models.isRef);
-    const added = findMissingRefs(justRefNotes, oldNotes);
-    const removed = findMissingRefs(
-      findMissingRefs(oldNotes, justRefNotes),
-      allRefs
-    );
-
-    // For each note added to this topic, add this topic to the note's related list
-    added.forEach(ref => {
-      const id = ref.ref;
-      const target = newContentList[id];
-      let broader: models.Ref[];
-      if (target) {
-        if (target.stale) {
-          broader = target.broader = [];
-        } else {
-          broader = target.broader = target.broader || [];
-        }
-      } else {
-        // this ensures that the findMissingReferences checker will pick this up
-        broader = newTopicContent.broader = newTopicContent.broader || [];
-      }
-
-      if (!models.hasRef(broader, k)) broader.push({ ref: k });
-    });
-
-    // For each note removed from this topic, remove this topic from the note's broader list
-    removed.forEach(ref => {
-      const id = ref.ref;
-      const target = newContentList[id];
-      if (!target) return;
-      const newList = (target.broader || []).filter(r => r.ref !== k);
-      if (newList.length === 0) {
-        if (changedKeys.indexOf(id) === -1) changedKeys.push(id);
-        target.stale = true;
-      } else {
-        target.broader = newList;
-      }
-    });
+  const derivedChanges = computeDerivedRelationshipChanges(changedKeys, contentList, newContentList);
+  groupBy(derivedChanges, c => c.topicId).forEach(([topicId, changes]) => {
+    const newTopicContent = newContentList[topicId]
+    if (newTopicContent) {
+      if (changedKeys.indexOf(topicId) === -1) changedKeys.push(topicId);
+      updateKeyForDerivedChanges(topicId, newTopicContent, changes, newContentList);
+    } else {
+      throw new ComplexError("invalid derived change ref", {
+        topicId,
+        changes,
+      });
+    }
   });
 
   return (await Promise.all(
-    changedKeys.map(async k => {
-      const docId = topicToDocID(k);
-      const oldDoc = await db
-        .get(docId)
-        // tag: specialAttributes
-        .catch(() => ({
-          _id: docId,
-          metadata: { id: k, created_at: Date.now() },
-        }));
-
-      const docEntries: models.Update[] = [];
-      const newContent = newContentList[k];
-      const newPayload: models.Update = {
-        ...pick(oldDoc, ['_id', '_rev', 'metadata']),
-        topic: decomposeEditorTopic(k, newContent, docEntries),
-      };
-
-      // tag: specialAttributes
-      if (oldDoc.metadata.stale_at === undefined && newContent.stale === true)
-        newPayload.metadata.stale_at = Date.now();
-
-      // tag: specialAttributes
-      if (newContent.text && !newPayload.metadata.created_at) {
-        newPayload.metadata.created_at = Date.now();
-      }
-
-      if (!deepEqual(oldDoc, newPayload)) docEntries.push(newPayload);
-
-      return docEntries;
-    })
+    changedKeys.map(async k => computeChangesFromKey(db, k, newContentList[k]))
   )).flat();
 }
 
@@ -226,15 +255,12 @@ function decomposeEditorTopic(
   const topic = omit(input, [
     'stale',
     'collection',
-    'next',
-    'later',
+    'tasks',
     'notes',
     'backrefs',
     'quotes',
   ]) as models.Topic;
 
-  decompose(input.next, next => (topic.next = next));
-  decompose(input.later, later => (topic.later = later));
   decompose(input.collection, collection => (topic.collection = collection));
   decompose(input.notes);
 
@@ -324,8 +350,6 @@ export function sortedYamlDump(input: object): string {
         'src',
         'props',
         'tasks',
-        'next',
-        'later',
         'related',
         'broader',
         'backrefs',
@@ -354,95 +378,31 @@ export function sortedYamlDump(input: object): string {
   });
 }
 
-function backrefType(targetId: string, topic: models.Topic): BackrefKey {
-  if (models.hasRef(topic.actionOn, targetId)) {
-    return 'tasks';
-  } else if (topic.title === undefined && !models.isRef(topic.src)) {
-    return 'notes';
-  } else if (models.isRef(topic.src) && topic.src.ref === targetId) {
-    return 'quotes';
-  } else {
-    return 'backrefs';
-  }
-}
-
-function orderTaskList(
+export type Backrefs = Record<BackrefKey, models.Ref[]>;
+function buildBackrefsAsRefs(
   targetId: string,
-  tasks: models.Payload[]
-): models.Payload[] {
-  const first = tasks.find(t => t.metadata.firstAction);
-  if (!first) {
-    throw new ComplexError('missing firstAction', {
-      targetId,
-      availableTasks: tasks,
-    });
-  }
+  list: models.Payload[]
+): Backrefs {
+  const bucketed = buildBackrefs(targetId, list);
+  return Object.keys(bucketed).reduce(
+    (acc, k) => {
+      const payloads = bucketed[k as BackrefKey];
+      if (!payloads) return acc;
 
-  const append = (
-    acc: models.Payload[],
-    p: models.Payload
-  ): models.Payload[] => {
-    acc.push(p);
-    const nextAction = p.metadata.nextAction;
-    if (nextAction) {
-      const nextPayload = tasks.find(t => t.metadata.id === nextAction.ref);
-      if (!nextPayload) {
-        throw new ComplexError('broken task chain', {
-          currentLink: p,
-          availableTasks: tasks,
-        });
-      }
-      return append(acc, nextPayload);
-    } else {
-      return acc;
-    }
-  };
-  const sorted = append([], first);
-  if (targetId === 'cjyvrubdh0000y5tnehc7bzxm') {
-    console.log(sorted.map(p => p.metadata.id));
-  }
-  return sorted;
-}
-
-type BackrefKey = keyof models.Backrefs;
-type BucketedBackrefs = Record<BackrefKey, models.Payload[]>;
-function buildBackrefs(k: string, v: models.Payload[]): models.Backrefs {
-  const ret: models.Backrefs = {};
-  const bucketed: BucketedBackrefs = v.reduce(
-    (acc: BucketedBackrefs, payload: models.Payload): BucketedBackrefs => {
-      const bucket = backrefType(k, payload.topic);
-      const list: models.Payload[] = (acc[bucket] = acc[bucket] || []);
-      list.push(payload);
+      let ids = payloads.map(({ metadata }) => metadata.id);
+      if (['notes', 'tasks'].indexOf(k) === -1) ids = ids.sort();
+      acc[k as BackrefKey] = ids
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .map((ref): models.Ref => ({ ref }));
       return acc;
     },
-    {} as BucketedBackrefs
+    {} as Backrefs
   );
-
-  if (bucketed.notes) {
-    bucketed.notes = bucketed.notes.sort(({ metadata: a }, { metadata: b }) => {
-      if (!a.created_at || !b.created_at) return 0;
-      if (a.created_at > b.created_at) return -1;
-      if (a.created_at < b.created_at) return 1;
-      return 0;
-    });
-  } else if (bucketed.tasks) {
-    bucketed.tasks = orderTaskList(k, bucketed.tasks);
-  }
-
-  Object.entries(bucketed).forEach(([k, v]) => {
-    let ids = v.map(({ metadata }) => metadata.id);
-    if (['notes', 'tasks'].indexOf(k) === -1) ids = ids.sort();
-    ret[k as BackrefKey] = ids
-      .filter((v, i, a) => a.indexOf(v) === i)
-      .map((ref): models.Ref => ({ ref }));
-  });
-
-  return ret;
 }
 
 function buildSortedReverseMappings(
   allDocs: models.Map<models.Payload>
-): Record<string, models.Backrefs> {
+): Record<string, Backrefs> {
   const reverse = buildReverseMappings(allDocs, true);
   return Object.fromEntries(
     Object.entries(reverse)
@@ -456,7 +416,7 @@ function buildSortedReverseMappings(
             !models.hasRef(reverse[referencingDoc.id], referencedId)
         ),
       ])
-      .map(([k, v]) => [k, buildBackrefs(k, v)])
+      .map(([k, v]) => [k, buildBackrefsAsRefs(k, v)])
   );
 }
 

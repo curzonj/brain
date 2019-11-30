@@ -31,23 +31,13 @@ export interface TopicFields {
 
 export type Topic = TopicFields & {
   collection?: Ref[];
-  next?: Ref[];
-  later?: Ref[];
 };
 export type TopicKeys = keyof Topic;
 
-export interface Backrefs {
-  notes?: Ref[];
-  backrefs?: Ref[];
-  quotes?: Ref[];
-  tasks?: Ref[];
-}
 export type EditorRefInput = Ref | string | EditorTopic;
 export interface EditorTopic extends TopicFields {
   stale?: true;
   collection?: EditorRefInput[];
-  next?: EditorRefInput[];
-  later?: EditorRefInput[];
   notes?: EditorRefInput[];
   tasks?: Ref[];
   backrefs?: Ref[];
@@ -80,7 +70,7 @@ export function getAllRefs<T extends TopicFields>(
 ): Ref[] {
   return Object.keys(doc).flatMap(key => {
     const item = (doc as any)[key];
-    if (excludeDeprecated && ['next', 'later'].indexOf(key) > -1) return [];
+    //if (excludeDeprecated && [].indexOf(key) > -1) return [];
     return [item].flat().filter(isRef);
   });
 }
@@ -117,9 +107,4 @@ export function hasRef(
     ? r
     : r.metadata.id;
   return idList.indexOf(id) > -1;
-}
-
-export function deriveTitle(n: Topic): string {
-  if (!n) return 'Missing Page';
-  return n.title || n.link || 'Note';
 }

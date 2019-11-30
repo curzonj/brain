@@ -1,16 +1,10 @@
 import { getTopic, getReverseMappings, loading as dataLoading } from './data';
 import * as models from '../../common/models';
-import { deriveTitle } from '../../common/models';
+import { deriveTitle, buildBackrefs, Backrefs, refSorter } from '../../common/content';
 import { annotateErrors } from '../../common/errors';
 
 type FieldsAndHeadings = [models.TopicKeys, string][];
-const TodoListFieldNames: FieldsAndHeadings = [
-  ['next', 'Next'],
-  ['later', 'Later'],
-];
 const NestedSectionListFieldNames: FieldsAndHeadings = [
-  ['next', 'Next'],
-  ['later', 'Later'],
   ['broader', 'Broader'],
   ['related', 'Related'],
   ['links', 'Links'],
@@ -34,7 +28,8 @@ export interface Div {
 }
 
 const sectionFunctions: ((
-  d: models.Payload
+  d: models.Payload,
+  b: Backrefs,
 ) => Promise<Section | Section[]>)[] = [
   frontSection,
   listSections,
@@ -60,15 +55,18 @@ export async function buildAbstractPage(
   const reloadWhenDone = dataLoading.isPending();
 
   await annotateErrors({ doc }, async () => {
-    const page = {
+    const page: AbstractPage = {
       title: deriveTitle(doc.topic),
       sections: [] as Section[],
     };
     if (progressiveRender) cb(page);
 
+    const list = await getReverseMappings(doc);
+    const bucketed = buildBackrefs(doc.metadata.id, list);
+
     await sectionFunctions.reduce(async (acc, fn) => {
       await acc;
-      const sections = [await fn(doc)].flat();
+      const sections = [await fn(doc, bucketed)].flat();
       sections.forEach(s => page.sections.push(s));
 
       if (progressiveRender) cb(page);
@@ -81,12 +79,20 @@ export async function buildAbstractPage(
     await dataLoading.then(() => buildAbstractPage(topicId, cb, false));
 }
 
+async function buildTasksDiv(
+  bucketed: Backrefs,
+): Promise<Div[]> {
+  const list = await maybePayloadsToTextObjects(bucketed.tasks);
+  if (list.length === 0) return [];
+  return [{ heading: "Tasks", list }];
+};
+
 async function frontSection({
   topic,
-}: models.Payload): Promise<Section | never[]> {
+}: models.Payload, backrefs: Backrefs): Promise<Section | never[]> {
   const divs = [
     await maybeListDiv(topic.collection),
-    await listFieldNameDivs(TodoListFieldNames, topic),
+    await buildTasksDiv(backrefs),
   ].flat();
 
   if (!topic.text && divs.length === 0) return [];
@@ -153,63 +159,52 @@ async function listFieldNameDivs(
   )).flat();
 }
 
-async function buildRelatedDivList(
-  doc: models.Payload
-): Promise<{ related: TextObject[]; notes: TextObject[] }> {
-  const list = await getReverseMappings(doc);
-
-  const notes: TextObject[] = await Promise.all(
+async function maybePayloadsToTextObjects(
+  ...list: (models.Payload[] | undefined)[]
+): Promise<TextObject[]> {
+  return Promise.all(
     list
-      .filter(t => t.topic.title === undefined)
-      .sort(({ metadata: a }, { metadata: b }) => {
-        if (!a.created_at || !b.created_at)
-          throw new Error('note missing created_at during sort');
-        if (a.created_at > b.created_at) return -1;
-        if (a.created_at < b.created_at) return 1;
-        return 0;
-      })
+      .filter(l => Array.isArray(l))
+      .flat()
       .map(topicToTextObject)
   );
+}
 
-  let related: TextObject[] = await Promise.all(
-    list.filter(t => t.topic.title !== undefined).map(topicToTextObject)
-  );
-
-  if (doc.topic.related) {
-    (await Promise.all(doc.topic.related.map(refToTextObject)))
-      .flat()
-      .forEach(to => {
-        if (!related.some(rto => rto.ref === to.ref)) {
-          related.unshift(to);
-        }
-      });
-  }
-
-  if (doc.topic.broader) {
-    (await Promise.all(doc.topic.broader.map(refToTextObject)))
-      .flat()
-      .forEach(to => {
-        if (!related.some(rto => rto.ref === to.ref)) {
-          related.unshift(to);
-        }
-      });
-  }
-
-  related = related.sort((a, b) => {
-    if (!a.ref) return -1;
-    if (!b.ref) return 1;
-    if (a.ref < b.ref) return -1;
-    if (a.ref > b.ref) return 1;
-    return 0;
+async function maybeAddRefTextObjects(
+  list: models.Ref[] | undefined,
+  tos: TextObject[]
+) {
+  if (!list) return;
+  (await Promise.all(list.map(refToTextObject))).flat().forEach(to => {
+    if (!tos.some(rto => rto.ref === to.ref)) {
+      tos.unshift(to);
+    }
   });
+}
+
+async function buildRelatedDivList(
+  doc: models.Payload,
+  bucketed: Backrefs,
+): Promise<{ related: TextObject[]; notes: TextObject[] }> {
+  const notes = await maybePayloadsToTextObjects(
+    bucketed.notes,
+    bucketed.quotes
+  );
+  let related = await maybePayloadsToTextObjects(bucketed.backrefs);
+
+  await maybeAddRefTextObjects(doc.topic.related, related);
+  await maybeAddRefTextObjects(doc.topic.broader, related);
+
+  related = related.sort(refSorter);
 
   return { related, notes };
 }
 
 async function otherFieldsSection(
-  doc: models.Payload
+  doc: models.Payload,
+  backrefs: Backrefs
 ): Promise<Section | Section[]> {
-  const { related, notes } = await buildRelatedDivList(doc);
+  const { related, notes } = await buildRelatedDivList(doc, backrefs);
   const divs = [
     { heading: 'Related', list: related },
     { heading: 'Links', list: (await maybeLabelRefs(doc.topic.links)) || [] },

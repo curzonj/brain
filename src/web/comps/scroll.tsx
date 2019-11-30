@@ -4,7 +4,7 @@ import { withRouter, RouteComponentProps } from 'react-router';
 class ScrollToTopInner extends React.Component<RouteComponentProps> {
   componentDidUpdate(prevProps: RouteComponentProps) {
     if (this.props.location.pathname !== prevProps.location.pathname) {
-      if (window.name !== "nodejs") window.scrollTo(0, 0);
+      if (window.name !== 'nodejs') window.scrollTo(0, 0);
     }
   }
 

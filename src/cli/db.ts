@@ -69,6 +69,7 @@ const databasePromise = Promise.resolve().then(async () => {
   });
 });
 
-export async function getDB(): Promise<PouchDB.Database<any>> {
+export type DB = PouchDB.Database<any>
+export async function getDB(): Promise<DB> {
   return databasePromise;
 }

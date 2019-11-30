@@ -109,10 +109,6 @@ definitions:
         $ref: "#/definitions/namedRefList"
       collection:
         $ref: "#/definitions/namedRefList"
-      next:
-        $ref: "#/definitions/namedRefList"
-      later:
-        $ref: "#/definitions/namedRefList"
       related:
         $ref: "#/definitions/namedRefList"
     dependencies:
@@ -142,10 +138,6 @@ definitions:
         type: boolean
         enum: [true]
       collection: #skos:collection/member
-        $ref: "#/definitions/namedRefListInput"
-      next:
-        $ref: "#/definitions/namedRefListInput"
-      later:
         $ref: "#/definitions/namedRefListInput"
       notes:
         $ref: "#/definitions/namedRefListInput"

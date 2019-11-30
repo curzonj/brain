@@ -3,22 +3,22 @@ import { RouteComponentProps } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Menu } from './menu';
 import './topic_page.css';
-import { useAbstractPage } from '../utils/abstract_page_react';
-import { AbstractPage, Section, Div } from '../utils/abstract_page';
+import * as models from '../../common/models';
+import { deriveTitle } from '../../common/content';
+import { useAsync } from './use_async';
+import { buildAbstractPage, AbstractPage, Section, Div } from '../utils/abstract_page';
 
-export function TopicHeader(props: { page: AbstractPage }) {
-  const { page } = props;
-
+export function TopicHeader(props: { title: string }) {
   return (
     <div className="header">
-      <h1 className="title">{page.title}</h1>
+      <h1 className="title">{props.title}</h1>
     </div>
   );
 }
 
 export function TopicPage(props: RouteComponentProps<{ topicId: string }>) {
   const { topicId } = props.match.params;
-  const page = useAbstractPage(topicId);
+  const page = useAsync(topicId, buildAbstractPage);
 
   return (
     <div className="topicPage">
@@ -31,7 +31,7 @@ export function TopicPage(props: RouteComponentProps<{ topicId: string }>) {
         </li>
       </Menu>
 
-      {page && <TopicHeader page={page} />}
+      {page && <TopicHeader title={page.title} />}
       {page && renderSections(page.sections)}
     </div>
   );

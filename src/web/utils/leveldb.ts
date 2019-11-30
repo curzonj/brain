@@ -1,23 +1,27 @@
 import leveljs from 'level-js';
 import encoding from 'encoding-down';
-import  memdown from 'memdown';
+import memdown from 'memdown';
 import levelup from 'levelup';
 import { wrap } from '../../leveldown';
 import batching from '../../leveldown/batch';
 import * as models from '../../common/models';
 
-const leveljsStore = typeof indexedDB === 'undefined' ? memdown() : leveljs('wiki');
+const leveljsStore =
+  typeof indexedDB === 'undefined' ? memdown() : leveljs('wiki');
 
 const batched = batching<any, string>(
-  levelup(encoding<string, any>(leveljsStore, { valueEncoding: 'id' }))
+  levelup(encoding<string, any>(leveljsStore, { valueEncoding: 'json' }))
 );
 const base = wrap(batched.db);
-const codeStorageVersion = 8;
+const codeStorageVersion = 9;
 
 export const write = batched.write;
 
 export const topics = base.subIndexed<models.Payload>('topics')({
-  backrefs: p => models.getAllRefs(p.topic).map(r => r.ref),
+  backrefs: p => {
+    const refs = models.getAllRefs(p.topic).map(r => r.ref)
+    return refs;
+  },
 });
 
 export const uploads = base.sub<models.Create<models.Payload>>('uploads');

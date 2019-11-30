@@ -31,6 +31,10 @@ export async function applyChanges(
     d => ({ ...d, _deleted: true } as models.Update)
   );
   const changes = [...updates, ...deletes];
+  if (changes.length === 0) {
+    console.log('No changes, skipping save');
+    return;
+  }
 
   validateUpdates(changes);
 

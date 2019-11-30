@@ -13,7 +13,7 @@ export async function getReverseMappings({
   topic,
   metadata,
 }: models.Payload): Promise<models.Payload[]> {
-  const outbound = models.getAllRefs(topic).map(r => r.ref);
+  const outbound = models.getAllRefs(topic, true).map(r => r.ref);
   const backrefs = await leveldb.topics.idx.backrefs.get(metadata.id);
 
   return backrefs
@@ -23,7 +23,7 @@ export async function getReverseMappings({
 
 export async function getTopic(
   topicKey: string
-): Promise<models.Payload | void> {
+): Promise<models.Payload | undefined> {
   return annotateErrors({ topicKey }, async () =>
     leveldb.topics.get(topicKey)
   ).catch(err => {
