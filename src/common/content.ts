@@ -49,7 +49,7 @@ export function buildBackrefs(k: string, v: models.Payload[]): Backrefs {
     bucketed.notes = bucketed.notes.sort(notesSorter);
   }
   if (bucketed.tasks) {
-    bucketed.tasks = orderTaskList(k, bucketed.tasks);
+    bucketed.tasks = orderTaskList(bucketed.tasks);
   }
 
   return bucketed;
@@ -67,38 +67,27 @@ function backrefType(targetId: string, topic: models.Topic): BackrefKey {
   }
 }
 
+function appendTaskChain(sorted: models.Payload[], p: models.Payload, tasks: models.Payload[]) {
+  sorted.push(p);
+  const nextAction = p.metadata.nextAction;
+  if (nextAction) {
+    const nextPayload = tasks.find(t => t.metadata.id === nextAction.ref);
+    if (!nextPayload) {
+      throw new ComplexError('broken task chain', {
+        currentLink: p,
+        availableTasks: tasks,
+      });
+    }
+    appendTaskChain(sorted, nextPayload, tasks);
+  }
+};
+
 export function orderTaskList(
-  targetId: string,
   tasks: models.Payload[]
 ): models.Payload[] {
+  const sorted: models.Payload[] = [];
   const first = tasks.find(t => t.metadata.firstAction);
-  if (!first) {
-    throw new ComplexError('missing firstAction', {
-      targetId,
-      availableTasks: tasks,
-    });
-  }
-
-  const append = (
-    acc: models.Payload[],
-    p: models.Payload
-  ): models.Payload[] => {
-    acc.push(p);
-    const nextAction = p.metadata.nextAction;
-    if (nextAction) {
-      const nextPayload = tasks.find(t => t.metadata.id === nextAction.ref);
-      if (!nextPayload) {
-        throw new ComplexError('broken task chain', {
-          currentLink: p,
-          availableTasks: tasks,
-        });
-      }
-      return append(acc, nextPayload);
-    } else {
-      return acc;
-    }
-  };
-  const sorted = append([], first);
+  if (first) appendTaskChain(sorted, first, tasks);
 
   // This ensures that the editor shows any task items that don't have
   // ordering information, it just shows them last.

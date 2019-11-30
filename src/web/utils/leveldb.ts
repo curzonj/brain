@@ -19,7 +19,7 @@ export const write = batched.write;
 
 export const topics = base.subIndexed<models.Payload>('topics')({
   backrefs: p => {
-    const refs = models.getAllRefs(p.topic).map(r => r.ref)
+    const refs = models.getAllRefs(p.topic).map(r => r.ref);
     return refs;
   },
 });

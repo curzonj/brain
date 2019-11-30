@@ -51,8 +51,7 @@ function filterField<F extends string>(
   }
 }
 
-export const rewriters: RewriterSet = {
-};
+export const rewriters: RewriterSet = {};
 
 /*
  * The fields are gone now so these don't compile, but they are good reference material

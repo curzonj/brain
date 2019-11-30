@@ -44,7 +44,6 @@ definitions:
         $ref: "#/definitions/namedRef"
       firstAction:
         type: boolean
-        enum: [true]
   topic:
     type: object
     additionalProperties: false
@@ -142,7 +141,7 @@ definitions:
       notes:
         $ref: "#/definitions/namedRefListInput"
       tasks:
-        $ref: "#/definitions/namedRefList"
+        $ref: "#/definitions/namedRefListInput"
       quotes:
         $ref: "#/definitions/namedRefList"
       backrefs:
@@ -152,6 +151,7 @@ definitions:
     allOf:
       - $ref: "#/definitions/editorNode"
     properties:
+      tasks: false
       broader: false
       stale: false
   namedRefListInput:

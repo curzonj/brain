@@ -32,7 +32,7 @@ export async function applyChanges(
   );
   const changes = [...updates, ...deletes];
   if (changes.length === 0) {
-    console.log('No changes, skipping save');
+    console.log('No changes, skipping applyChanges');
     return;
   }
 

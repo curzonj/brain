@@ -1,6 +1,11 @@
 import { getTopic, getReverseMappings, loading as dataLoading } from './data';
 import * as models from '../../common/models';
-import { deriveTitle, buildBackrefs, Backrefs, refSorter } from '../../common/content';
+import {
+  deriveTitle,
+  buildBackrefs,
+  Backrefs,
+  refSorter,
+} from '../../common/content';
 import { annotateErrors } from '../../common/errors';
 
 type FieldsAndHeadings = [models.TopicKeys, string][];
@@ -29,7 +34,7 @@ export interface Div {
 
 const sectionFunctions: ((
   d: models.Payload,
-  b: Backrefs,
+  b: Backrefs
 ) => Promise<Section | Section[]>)[] = [
   frontSection,
   listSections,
@@ -79,17 +84,16 @@ export async function buildAbstractPage(
     await dataLoading.then(() => buildAbstractPage(topicId, cb, false));
 }
 
-async function buildTasksDiv(
-  bucketed: Backrefs,
-): Promise<Div[]> {
+async function buildTasksDiv(bucketed: Backrefs): Promise<Div[]> {
   const list = await maybePayloadsToTextObjects(bucketed.tasks);
   if (list.length === 0) return [];
-  return [{ heading: "Tasks", list }];
-};
+  return [{ heading: 'Tasks', list }];
+}
 
-async function frontSection({
-  topic,
-}: models.Payload, backrefs: Backrefs): Promise<Section | never[]> {
+async function frontSection(
+  { topic }: models.Payload,
+  backrefs: Backrefs
+): Promise<Section | never[]> {
   const divs = [
     await maybeListDiv(topic.collection),
     await buildTasksDiv(backrefs),
@@ -184,7 +188,7 @@ async function maybeAddRefTextObjects(
 
 async function buildRelatedDivList(
   doc: models.Payload,
-  bucketed: Backrefs,
+  bucketed: Backrefs
 ): Promise<{ related: TextObject[]; notes: TextObject[] }> {
   const notes = await maybePayloadsToTextObjects(
     bucketed.notes,

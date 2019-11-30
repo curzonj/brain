@@ -45,7 +45,7 @@ describe('content.ts', () => {
       },
     ];
 
-    const orderedList = orderTaskList('0', unorderedList);
+    const orderedList = orderTaskList(unorderedList);
     expect(orderedList.map(p => p.metadata.id)).toEqual(['1', '3', '2', '4']);
   });
 });

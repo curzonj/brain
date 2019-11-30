@@ -3,10 +3,8 @@ import { RouteComponentProps } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Menu } from './menu';
 import './topic_page.css';
-import * as models from '../../common/models';
-import { deriveTitle } from '../../common/content';
 import { useAsync } from './use_async';
-import { buildAbstractPage, AbstractPage, Section, Div } from '../utils/abstract_page';
+import { buildAbstractPage, Section, Div } from '../utils/abstract_page';
 
 export function TopicHeader(props: { title: string }) {
   return (

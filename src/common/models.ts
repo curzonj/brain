@@ -34,17 +34,6 @@ export type Topic = TopicFields & {
 };
 export type TopicKeys = keyof Topic;
 
-export type EditorRefInput = Ref | string | EditorTopic;
-export interface EditorTopic extends TopicFields {
-  stale?: true;
-  collection?: EditorRefInput[];
-  notes?: EditorRefInput[];
-  tasks?: Ref[];
-  backrefs?: Ref[];
-  quotes?: Ref[];
-}
-export type EditorTopicKeys = keyof EditorTopic;
-
 export interface TopicMetadata {
   id: string;
   created_at: number;
