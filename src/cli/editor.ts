@@ -342,7 +342,11 @@ async function computeUpdates(
     .map(p => p.update);
 }
 
-async function updateTaskMetadata(db: DB, newPayloads: models.Map<UpdateWithTasks>, newContentList: models.Map<EditorTopic>) {
+async function updateTaskMetadata(
+  db: DB,
+  newPayloads: models.Map<UpdateWithTasks>,
+  newContentList: models.Map<EditorTopic>
+) {
   await Promise.all(
     Object.keys(newPayloads).map(async targetId => {
       const newContent = newPayloads[targetId];
@@ -371,7 +375,7 @@ async function updateTaskMetadata(db: DB, newPayloads: models.Map<UpdateWithTask
               t.ref,
               newContentList[t.ref],
               newPayloads,
-              custom,
+              custom
             );
           }
         })
@@ -576,7 +580,9 @@ export async function buildEditorStructure(): Promise<models.Map<EditorTopic>> {
       }
 
       models.getAllRefs(topic).forEach(ref => {
-        const { metadata: otherMetadata, topic: otherDoc } = allDocs[ref.ref] || {
+        const { metadata: otherMetadata, topic: otherDoc } = allDocs[
+          ref.ref
+        ] || {
           topic: {
             title: 'WARNING: No such ref',
           },
@@ -603,9 +609,9 @@ export async function buildEditorStructure(): Promise<models.Map<EditorTopic>> {
 function sanitizeRewrites(result: models.Map<EditorTopic>) {
   Object.values(result).forEach((doc: EditorTopic) =>
     models.getAllRefs(doc).forEach(ref => {
-      Object.keys(ref).
-        filter(k => k !== 'ref').
-        forEach(k => delete (ref as any)[k])
+      Object.keys(ref)
+        .filter(k => k !== 'ref')
+        .forEach(k => delete (ref as any)[k]);
     })
   );
 }

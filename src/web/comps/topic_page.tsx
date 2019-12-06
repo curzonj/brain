@@ -2,17 +2,10 @@ import React from 'react';
 import { RouteComponentProps } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Menu } from './menu';
+import { PageHeader } from './elements';
 import './topic_page.css';
 import { useAsync } from './use_async';
 import { buildAbstractPage, Section, Div } from '../utils/abstract_page';
-
-export function TopicHeader(props: { title: string }) {
-  return (
-    <div className="header">
-      <h1 className="title">{props.title}</h1>
-    </div>
-  );
-}
 
 export function TopicPage(props: RouteComponentProps<{ topicId: string }>) {
   const { topicId } = props.match.params;
@@ -29,7 +22,7 @@ export function TopicPage(props: RouteComponentProps<{ topicId: string }>) {
         </li>
       </Menu>
 
-      {page && <TopicHeader title={page.title} />}
+      {page && <PageHeader title={page.title} />}
       {page && renderSections(page.sections)}
     </div>
   );

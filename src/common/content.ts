@@ -67,7 +67,11 @@ function backrefType(targetId: string, topic: models.Topic): BackrefKey {
   }
 }
 
-function appendTaskChain(sorted: models.Payload[], p: models.Payload, tasks: models.Payload[]) {
+function appendTaskChain(
+  sorted: models.Payload[],
+  p: models.Payload,
+  tasks: models.Payload[]
+) {
   sorted.push(p);
   const nextAction = p.metadata.nextAction;
   if (nextAction) {
@@ -80,11 +84,9 @@ function appendTaskChain(sorted: models.Payload[], p: models.Payload, tasks: mod
     }
     appendTaskChain(sorted, nextPayload, tasks);
   }
-};
+}
 
-export function orderTaskList(
-  tasks: models.Payload[]
-): models.Payload[] {
+export function orderTaskList(tasks: models.Payload[]): models.Payload[] {
   const sorted: models.Payload[] = [];
   const first = tasks.find(t => t.metadata.firstAction);
   if (first) appendTaskChain(sorted, first, tasks);

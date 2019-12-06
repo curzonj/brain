@@ -1,7 +1,7 @@
 import React from 'react';
 import { RouteComponentProps } from 'react-router';
 import { addNote } from '../utils/data';
-import { TopicHeader } from './topic_page';
+import { PageHeader } from './elements';
 import { BigTextAreaPage } from './big_textarea';
 import { useAsync } from './use_async';
 import { getTopic } from '../utils/data';
@@ -23,7 +23,7 @@ export const NotePage: React.FC<
 
   return (
     <BigTextAreaPage className="topicPage" handler={onSubmit}>
-      {payload && <TopicHeader title={deriveTitle(payload.topic)} />}
+      {payload && <PageHeader title={deriveTitle(payload.topic)} />}
     </BigTextAreaPage>
   );
 };
