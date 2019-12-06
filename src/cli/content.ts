@@ -3,6 +3,7 @@ import { getDB, remote } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
 import { schemaSelector } from './schema';
+import { exportFile } from './paths';
 
 const couchDbSchema = schemaSelector('payload');
 
@@ -75,8 +76,8 @@ export async function dumpJSON() {
 
   const docs = rows.map(r => r.doc);
 
-  fs.writeFileSync(
-    `${__dirname}/../../exports/couchdb_dump.json`,
+  exportFile(
+    'couchdb_dump.json', 
     JSON.stringify(docs, null, ' ')
   );
 }

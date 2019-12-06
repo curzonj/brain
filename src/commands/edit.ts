@@ -11,6 +11,7 @@ import {
 } from '../cli/editor';
 import * as models from '../common/models';
 import { schemaSelector } from '../cli/schema';
+import { readExport } from '../cli/paths';
 
 const editorSchema = schemaSelector('editor');
 
@@ -73,9 +74,7 @@ async function getContentString(
       return;
     }
 
-    return fs
-      .readFileSync(`${__dirname}/../../exports/kb.yml`)
-      .toString('utf8');
+    return readExport('kb.yml');
   }
 
   return sortedYamlDump(content);

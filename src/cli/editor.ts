@@ -20,6 +20,7 @@ import * as models from '../common/models';
 import { buildBackrefs, BackrefKey } from '../common/content';
 import { schemaSelector } from './schema';
 import { groupBy } from './groupBy';
+import { exportFile } from './paths';
 
 const debug = debugLib('kbase:editor');
 const editorSchema = schemaSelector('editor');
@@ -104,7 +105,7 @@ function onEditorExit(
     return;
   }
 
-  fs.writeFileSync(`${__dirname}/../../exports/kb.yml`, editorContents);
+  exportFile('kb.yml', editorContents);
 
   let result;
   try {

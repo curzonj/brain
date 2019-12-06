@@ -1,7 +1,7 @@
 import PouchDB from 'pouchdb';
 import cuid from 'cuid';
 
-import * as leveldb from './leveldb';
+import * as leveldb from '../../common/leveldb';
 import { reportError, ComplexError, annotateErrors } from '../../common/errors';
 import * as models from '../../common/models';
 import { wrapProfiling } from '../../common/performance';

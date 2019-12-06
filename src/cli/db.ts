@@ -1,14 +1,10 @@
 import PouchDB from 'pouchdb';
 import sleep from 'sleep-promise';
-import * as fs from 'fs';
 import { timingAsync } from './timing';
 import pouchdbAdapterMemory from 'pouchdb-adapter-memory';
+import { config, getDatabasePath } from './paths';
 
 PouchDB.plugin(pouchdbAdapterMemory);
-
-const config = JSON.parse(
-  fs.readFileSync(`${__dirname}/../../config/sync.json`, 'utf8')
-);
 
 export const remote = new PouchDB<any>(config.url, { auth: config.auth });
 export const InMemPouchDB = PouchDB.defaults({ adapter: 'memory' });
@@ -22,7 +18,7 @@ export function getPouchDBClass(): PouchDBConstructor {
   if (process.env.NODE_ENV === 'test') {
     return InMemPouchDB;
   } else {
-    return PouchDB.defaults({ prefix: `${__dirname}/../../databases/` });
+    return PouchDB.defaults({ prefix: getDatabasePath() });
   }
 }
 
@@ -44,7 +40,7 @@ async function openOrWait(path: string): Promise<PouchDB.Database<any>> {
 
 const databasePromise = Promise.resolve().then(async () => {
   const prodDB = await timingAsync('databasePromise.openOrWait', () =>
-    openOrWait(`${__dirname}/../../databases/gityaml`)
+    openOrWait(`${getDatabasePath()}/gityaml`)
   );
 
   if (process.env.NODE_ENV !== 'test') {
