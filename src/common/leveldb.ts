@@ -7,7 +7,7 @@ import { Indexer } from '../leveldown/indexing';
 import batching from '../leveldown/batch';
 import * as models from './models';
 
-export const codeStorageVersion = 10;
+export const codeStorageVersion = 11;
 
 const tokenizer = new WordTokenizer();
 
@@ -42,7 +42,7 @@ export function buildLevelDB(
       return [p.text || [], p.title || []]
         .flat()
         .flatMap(s => tokenizer.tokenize(s.toLowerCase()))
-        .filter(s => s.length > 3 && s.match(/^[a-z]+$/));
+        .filter(s => s.length > 2 && s.match(/^[a-z]+$/));
     },
   });
 
