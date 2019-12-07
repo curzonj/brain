@@ -163,7 +163,7 @@ async function listFieldNameDivs(
   )).flat();
 }
 
-async function maybePayloadsToTextObjects(
+export async function maybePayloadsToTextObjects(
   ...list: (models.Payload[] | undefined)[]
 ): Promise<TextObject[]> {
   return Promise.all(
@@ -250,7 +250,7 @@ async function refToTextObject(ref: models.Ref): Promise<TextObject | never[]> {
   }
 }
 
-interface TextObject {
+export interface TextObject {
   ref?: string;
   label?: string;
   text?: string;

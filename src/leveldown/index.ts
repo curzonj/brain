@@ -15,7 +15,7 @@ export function wrap<V>(db: AbstractLevelDOWN<string, V>) {
   return new LevelWrapper<V, {}>(db, {});
 }
 
-class LevelWrapper<V, IDXRS extends Indexers<V>> {
+export class LevelWrapper<V, IDXRS extends Indexers<V>> {
   db: LevelUp<AbstractLevelDOWN<string, V>, AbstractIterator<string, V>>;
   idx: Indexes<V, IDXRS>;
   private indexed: boolean;

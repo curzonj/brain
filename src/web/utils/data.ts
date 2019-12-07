@@ -1,13 +1,27 @@
 import PouchDB from 'pouchdb';
 import cuid from 'cuid';
 
-import * as leveldb from '../../common/leveldb';
 import { reportError, ComplexError, annotateErrors } from '../../common/errors';
 import * as models from '../../common/models';
 import { wrapProfiling } from '../../common/performance';
 import { Rendezvous } from '../../common/typed_event';
+import {
+  getLastSeq,
+  updateLevelDB,
+  importTopicsToLevelDB,
+} from '../../common/content';
+import leveljs from 'level-js';
+import memdown from 'memdown';
+import {
+  buildLevelDB,
+  isTestEnv,
+  codeStorageVersion,
+} from '../../common/leveldb';
 
 export const loading = new Rendezvous<boolean>();
+
+const leveljsStore = isTestEnv() ? memdown() : leveljs('wiki');
+export const leveldb = buildLevelDB(leveljsStore);
 
 export async function getReverseMappings({
   topic,
@@ -134,92 +148,31 @@ function backgroundSync() {
 
 async function syncToLevelDB(sourceDb: PouchDB.Database) {
   await wrapProfiling('syncToLevelDB', async () => {
-    const lastSeq = await getLastSeq();
-    const schemaCurrent = await leveldb.isStorageSchemaCurrent();
+    const lastSeq = await getLastSeq(leveldb);
+    const schemaCurrent = await isStorageSchemaCurrent();
 
     if (!lastSeq || !schemaCurrent) {
-      await leveldb.resetStorageSchema();
-      await importTopicsToLevelDB(sourceDb);
+      await resetStorageSchema();
+      await importTopicsToLevelDB(leveldb, sourceDb);
     } else {
-      await updateLevelDB(sourceDb, lastSeq);
+      await updateLevelDB(leveldb, sourceDb, lastSeq);
     }
   });
 }
 
-async function importTopicsToLevelDB(sourceDb: PouchDB.Database) {
-  const { rows, update_seq: resultSequence } = await sourceDb.allDocs<
-    models.Payload
-  >({
-    include_docs: true,
-    startkey: `$/topics/`,
-    endkey: `$/topics/\uFFF0`,
-    update_seq: true,
-  });
+async function isStorageSchemaCurrent(): Promise<boolean> {
+  const value = await leveldb.configs
+    .get('storageVersion')
+    .catch((err: Error) => undefined);
 
-  await Promise.all(
-    rows.map(async ({ doc }) => {
-      if (doc) {
-        await leveldb.topics.put(lastSlashItem(doc._id), stripDoc(doc), {
-          freshIndexes: true,
-        });
-      }
-    })
-  );
+  return value && value >= codeStorageVersion;
+}
 
-  await leveldb.configs.put('lastSeq', resultSequence);
+async function resetStorageSchema() {
+  console.log('Resetting storage schema');
+  await leveljsStore.store('readwrite').clear();
+  await leveldb.configs.put('storageVersion', codeStorageVersion);
   await leveldb.write();
-}
-
-async function updateLevelDB(
-  sourceDb: PouchDB.Database,
-  outerLastSeq: string | number
-): Promise<void> {
-  const inner = async (lastSeq: string | number) => {
-    const { last_seq: resultLastSeq, results } = await sourceDb.changes<
-      models.Payload
-    >({
-      include_docs: true,
-      since: lastSeq,
-      limit: 200,
-      batch_size: 200,
-    });
-
-    await Promise.all(
-      results.map(async change => {
-        if (change.id.startsWith('$/queue/')) {
-          // TODO currently this means that notes from other devices
-          // won't show up until they get synced on my laptop
-          return;
-        } else if (change.deleted) {
-          await leveldb.topics.del(lastSlashItem(change.id));
-        } else if (change.doc && change.doc.metadata) {
-          await leveldb.topics.put(
-            lastSlashItem(change.id),
-            stripDoc(change.doc)
-          );
-        }
-      })
-    );
-
-    await leveldb.configs.put('lastSeq', resultLastSeq);
-    await leveldb.write();
-
-    return { results: results.length, seq: resultLastSeq };
-  };
-
-  const following = async ({
-    results,
-    seq,
-  }: {
-    results: number;
-    seq: string | number;
-  }): Promise<void> => {
-    if (results > 0) {
-      return inner(seq).then(following);
-    }
-  };
-
-  return inner(outerLastSeq).then(following);
 }
 
 let remoteDbMemoized: PouchDB.Database;
@@ -258,10 +211,6 @@ function getDbTarget(): DbConfigObject | undefined {
   }
 }
 
-async function getLastSeq(): Promise<number | string | undefined> {
-  return leveldb.configs.get('lastSeq').catch((err: Error) => undefined);
-}
-
 async function attemptNoteUpload(
   payload: models.Create<models.Payload>,
   sourceDb: PouchDB.Database
@@ -276,21 +225,6 @@ async function attemptNoteUpload(
   }
 
   await leveldb.uploads.del(payload.metadata.id, { writeBatch: true });
-}
-
-function lastSlashItem(docId: string) {
-  return reverseSlashes(docId)[0];
-}
-
-function reverseSlashes(v: string) {
-  return v.split('/').reverse();
-}
-
-function stripDoc({
-  topic,
-  metadata,
-}: models.Create<models.Payload>): models.Payload {
-  return { topic, metadata };
 }
 
 function topicToDocID(topicID: string): string {

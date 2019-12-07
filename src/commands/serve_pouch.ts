@@ -4,11 +4,17 @@ import express from 'express';
 import cors from 'cors';
 import expressPouchDB from 'express-pouchdb';
 import { getPouchDBClass, getDB } from '../cli/db';
+import { expressPouchDBConfig } from '../cli/paths';
+import { debug as debugLib } from 'debug';
+
+const debug = debugLib('kbase:serve_pouch');
+
+debug('configuration path = %s', expressPouchDBConfig);
 
 export default class ServerPouchCommand extends Command {
   public async run() {
     const pouchDbHandler = expressPouchDB(getPouchDBClass(), {
-      configPath: 'config/pouch_db.json',
+      configPath: expressPouchDBConfig,
       mode: 'fullCouchDB', // specified for clarity. It's the default so not necessary.
       overrideMode: {
         exclude: [

@@ -41,6 +41,16 @@ export class Index<V> {
     return this.getAll({ gte: `${k}!`, lt: `${k}!${ENDstr}` });
   }
 
+  async getAllKeys(options: AbstractIteratorOptions): Promise<string[]> {
+    const list: string[] = [];
+
+    await this.indexDb.forEach(options, (k, v) => {
+      list.push(k.split('!')[0]);
+    });
+
+    return list;
+  }
+
   async getAll(options: AbstractIteratorOptions): Promise<V[]> {
     const list: V[] = [];
 

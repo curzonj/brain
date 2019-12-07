@@ -1,12 +1,9 @@
 import { Command } from '@oclif/command';
-import { getDB, remote } from '../cli/db';
-import { dumpJSON } from '../cli/content';
+import { syncPhase } from '../cli/content';
 
 class SyncCommand extends Command {
   public async run() {
-    const db = await getDB();
-    await db.sync(remote);
-    await dumpJSON();
+    await syncPhase();
   }
 }
 

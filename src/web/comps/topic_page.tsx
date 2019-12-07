@@ -51,7 +51,7 @@ function sectionDivs(divs: Div[]) {
   });
 }
 
-function simpleList(list: any[]) {
+export function simpleList(list: any[]) {
   return (
     <ul>
       {list.map((s, i) => (
@@ -61,7 +61,7 @@ function simpleList(list: any[]) {
   );
 }
 
-function textItem(item: any, showMore: boolean = true) {
+export function textItem(item: any, showMore: boolean = true) {
   if (!item) {
     throw new Error('item parameter is missing');
   } else if (typeof item === 'string') {

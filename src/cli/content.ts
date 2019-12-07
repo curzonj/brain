@@ -1,27 +1,53 @@
-import * as fs from 'fs';
+import PouchDB from 'pouchdb';
 import { getDB, remote } from './db';
 import { ComplexError } from '../common/errors';
 import * as models from '../common/models';
 import { schemaSelector } from './schema';
 import { exportFile } from './paths';
+import { leveldb } from './leveldb';
+import {
+  getAllDocs,
+  updateLevelDB,
+  getLastSeq,
+  importTopicsToLevelDB,
+} from '../common/content';
 
 const couchDbSchema = schemaSelector('payload');
 
 export async function getAllDocsHash(): Promise<models.Map<models.Existing>> {
   const db = await getDB();
-  const { rows } = await db.allDocs<models.Payload>({
-    include_docs: true,
-    startkey: '$/topics/',
-    endkey: '$/topics/\ufff0',
-  });
+  const { rows } = await getAllDocs(db);
 
   return rows
     .map(r => r.doc)
-    .filter(d => d !== undefined)
-    .reduce((acc: models.Map<models.Existing>, doc: models.Existing) => {
-      acc[doc.metadata.id] = doc;
-      return acc;
-    }, {});
+    .reduce(
+      (acc: models.Map<models.Existing>, doc: models.Existing | undefined) => {
+        if (doc) acc[doc.metadata.id] = doc;
+        return acc;
+      },
+      {}
+    );
+}
+
+export async function syncPhase() {
+  const db = await getDB();
+  console.log('Replicating...');
+  await db.sync(remote);
+  await dumpJSON();
+  await syncToLevelDB(db);
+}
+
+// TODO this is missing the use case to delete the leveldb
+// when the database structure is supposed to change. For
+// now I'll just have to rm-rf the directory manually
+async function syncToLevelDB(sourceDb: PouchDB.Database) {
+  const lastSeq = await getLastSeq(leveldb);
+
+  if (!lastSeq) {
+    await importTopicsToLevelDB(leveldb, sourceDb);
+  } else {
+    await updateLevelDB(leveldb, sourceDb, lastSeq);
+  }
 }
 
 export async function applyChanges(
@@ -41,9 +67,7 @@ export async function applyChanges(
 
   const db = await getDB();
   await db.bulkDocs(changes);
-  console.log('Replicating...');
-  await db.sync(remote);
-  await dumpJSON();
+  await syncPhase();
 }
 
 function validateUpdates(updates: models.Update[]) {
@@ -76,10 +100,7 @@ export async function dumpJSON() {
 
   const docs = rows.map(r => r.doc);
 
-  exportFile(
-    'couchdb_dump.json', 
-    JSON.stringify(docs, null, ' ')
-  );
+  exportFile('couchdb_dump.json', JSON.stringify(docs, null, ' '));
 }
 
 export function topicToDocID(topicID: string): string {

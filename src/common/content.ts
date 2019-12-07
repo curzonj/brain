@@ -1,5 +1,9 @@
 import * as models from './models';
 import { ComplexError } from './errors';
+import { LevelDB } from './leveldb';
+
+const topicStartKey = '$/topics/';
+const topicEndKey = '$/topics/\ufff0';
 
 export function deriveTitle(n: models.Topic): string {
   if (!n) return 'Missing Page';
@@ -98,4 +102,93 @@ export function orderTaskList(tasks: models.Payload[]): models.Payload[] {
   });
 
   return sorted;
+}
+
+export async function getLastSeq(
+  leveldb: LevelDB
+): Promise<number | string | undefined> {
+  return leveldb.configs.get('lastSeq').catch((err: Error) => undefined);
+}
+
+export async function updateLevelDB(
+  leveldb: LevelDB,
+  sourceDb: PouchDB.Database,
+  outerLastSeq: string | number
+): Promise<void> {
+  const inner = async (lastSeq: string | number) => {
+    const { last_seq: resultLastSeq, results } = await sourceDb.changes<
+      models.Payload
+    >({
+      include_docs: true,
+      since: lastSeq,
+      limit: 200,
+      batch_size: 200,
+    });
+
+    await Promise.all(
+      results.map(async change => {
+        if (change.deleted) {
+          await leveldb.topics.del(lastSlashItem(change.id));
+        } else if (change.doc && change.doc.metadata) {
+          await leveldb.topics.put(lastSlashItem(change.id), change.doc);
+        }
+      })
+    );
+
+    await leveldb.configs.put('lastSeq', resultLastSeq);
+    await leveldb.write();
+
+    return { results: results.length, seq: resultLastSeq };
+  };
+
+  const following = async ({
+    results,
+    seq,
+  }: {
+    results: number;
+    seq: string | number;
+  }): Promise<void> => {
+    if (results > 0) {
+      return inner(seq).then(following);
+    }
+  };
+
+  return inner(outerLastSeq).then(following);
+}
+
+export async function getAllDocs(sourceDb: PouchDB.Database) {
+  return sourceDb.allDocs<models.Payload>({
+    include_docs: true,
+    update_seq: true,
+    startkey: topicStartKey,
+    endkey: topicEndKey,
+  });
+}
+
+export async function importTopicsToLevelDB(
+  leveldb: LevelDB,
+  sourceDb: PouchDB.Database
+) {
+  const { rows, update_seq: resultSequence } = await getAllDocs(sourceDb);
+
+  await Promise.all(
+    rows.map(async ({ doc }) => {
+      if (doc) {
+        await leveldb.topics.put(doc.metadata.id, doc, {
+          freshIndexes: true,
+        });
+      }
+    })
+  );
+
+  await leveldb.configs.put('lastSeq', resultSequence);
+  await leveldb.write();
+}
+
+function lastSlashItem(docId: string) {
+  return reverseSlashes(docId)[0];
+}
+
+function reverseSlashes(v: string) {
+  return v.split('/').reverse();
 }

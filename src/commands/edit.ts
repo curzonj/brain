@@ -1,6 +1,5 @@
 import { Command, flags } from '@oclif/command';
 import { cli } from 'cli-ux';
-import * as fs from 'fs';
 
 import {
   applyEditorChanges,
