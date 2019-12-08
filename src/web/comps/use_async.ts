@@ -43,7 +43,12 @@ export function useAsync<T, V>(
       const isEqual = previousResultForComparison
         ? deepEqual(result, previousResultForComparison)
         : false;
-      debug.trace('params=%O result=%O changed=%o', params, result, !isEqual);
+      debug.trace(
+        'useAsync params=%O result=%O changed=%o',
+        params,
+        result,
+        !isEqual
+      );
       if (isEqual) return;
       setState({ fn: debouncedFn, params, result });
     });
