@@ -189,9 +189,11 @@ export async function importTopicsToLevelDB(
     const { doc } = row;
     if ((i as number) % 100 === 0) debug.storage('topics.put progress=%s', i);
     if (doc) {
+      debug.trace('topics.Put at=start index=%s id=%s', i, doc.metadata.id);
       await leveldb.topics.put(doc.metadata.id, doc, {
         freshIndexes: true,
       });
+      debug.trace('topics.Put at=finish index=%s id=%s', i, doc.metadata.id);
     }
   });
 
