@@ -10,7 +10,7 @@ export function deriveTitle(n: models.Topic): string {
   return n.title || n.link || 'Note';
 }
 
-function notesSorter(
+export function notesSorter(
   { metadata: a }: models.Payload,
   { metadata: b }: models.Payload
 ): -1 | 0 | 1 {

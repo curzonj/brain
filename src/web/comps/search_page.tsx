@@ -6,6 +6,7 @@ import debug from '../../common/debug';
 import { useAsync } from './use_async';
 import { Menu } from './menu';
 import { maybePayloadsToTextObjects, TextObject } from '../utils/abstract_page';
+import { notesSorter } from '../../common/content';
 import { simpleList } from './topic_page';
 import './search_page.css';
 
@@ -25,7 +26,7 @@ export function SearchPage(props: {}) {
         gte: term,
         lt: [term, ENDstr].join(''),
       });
-      return maybePayloadsToTextObjects(terms);
+      return maybePayloadsToTextObjects(terms.sort(notesSorter));
     },
     { wait: 200, leading: true, fuzzy: true }
   );
