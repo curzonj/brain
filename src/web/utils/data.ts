@@ -18,7 +18,7 @@ import {
   codeStorageVersion,
 } from '../../common/leveldb';
 
-export const loading = new Rendezvous<boolean>();
+export const loading = new Rendezvous<boolean>('dataLoading');
 
 const leveljsStore = isTestEnv() ? memdown() : leveljs('wiki');
 export const leveldb = buildLevelDB(leveljsStore);

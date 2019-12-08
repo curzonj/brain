@@ -1,3 +1,5 @@
+import debug from './debug';
+
 export interface Listener<T> {
   (err: Error | undefined, event: T | undefined): void;
 }
@@ -7,9 +9,14 @@ export interface Disposable {
 }
 
 export class Rendezvous<T> {
+  name: string;
   private payload?: T;
   private errorPayload?: Error;
   private event: TypedEvent<T> = new TypedEvent();
+
+  constructor(name: string) {
+    this.name = name;
+  }
 
   hasFired = (): boolean =>
     this.payload !== undefined || this.errorPayload !== undefined;
@@ -35,6 +42,7 @@ export class Rendezvous<T> {
 
   done = (payload: T) => {
     if (this.hasFired()) throw new Error('Rendezvous already fired');
+    debug.events('eventFired name=%s payload=%O', this.name, payload);
 
     this.payload = payload;
     this.event.emit(payload);
