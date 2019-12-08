@@ -84,8 +84,7 @@ export async function addNote(topicId: string, text: string) {
   if (navigator.onLine) {
     const remoteDb = getRemoteDb();
     catchError(async () => attemptNoteUpload(payload, remoteDb), {
-      file: 'db',
-      fn: 'attemptNoteUpload',
+      at: 'data.addNote',
     });
   }
 }
@@ -112,7 +111,7 @@ async function isConfigured(): Promise<boolean> {
   // this can look like I'll delete the config and return
   // false sometimes
   catchError(async () => remoteDb.info(), {
-    at: 'db.isConfigured',
+    at: 'data.isConfigured',
   });
 
   return true;
@@ -143,15 +142,18 @@ function backgroundSync() {
     return;
   }
 
-  catchError(async () => {
-    try {
-      const remoteDb = getRemoteDb();
-      await syncToLevelDB(remoteDb);
-      await uploadNotes(remoteDb);
-    } finally {
-      loading.done(true);
-    }
-  });
+  catchError(
+    async () => {
+      try {
+        const remoteDb = getRemoteDb();
+        await syncToLevelDB(remoteDb);
+        await uploadNotes(remoteDb);
+      } finally {
+        loading.done(true);
+      }
+    },
+    { at: 'data.backgroundSync' }
+  );
 }
 
 async function syncToLevelDB(sourceDb: PouchDB.Database) {
