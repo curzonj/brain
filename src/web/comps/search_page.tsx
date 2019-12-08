@@ -32,7 +32,7 @@ export function SearchPage(props: {}) {
 
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (e && e.target) {
-      let value = e.target.value;
+      let value = e.target.value.toLowerCase();
       debug.uiEvents('onChange value=%s', value);
       if (value.length > 2) {
         history.replace({ ...location, search: `?search=${value}` });
