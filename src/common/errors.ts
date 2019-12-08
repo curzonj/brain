@@ -78,21 +78,25 @@ export async function annotateErrors<T>(
   });
 }
 
-export function reportError(err: any, opts: any = {}) {
-  if (typeof err === 'function') {
-    Promise.resolve()
-      .then(err)
-      .catch(e => reportError(e, opts));
+export function catchError(fn: () => any, opts: any = {}) {
+  Promise.resolve()
+    .then(fn)
+    .catch(e => reportError(e, opts));
+}
+
+interface ErrorFields extends Error {
+  cause?: { stack?: any };
+  details?: any;
+}
+export function reportError(err: ErrorFields, opts: any = {}) {
+  if (err instanceof ComplexError) {
+    Object.assign(err.details, opts);
   } else {
-    if (err instanceof ComplexError) {
-      Object.assign(err.details, opts);
-    } else {
-      err = new ComplexError(err, opts);
-    }
-    console.error(err);
-    if (err.cause && err.cause.stack) {
-      console.log(err.cause.stack);
-    }
-    console.log(err.details);
+    err = new ComplexError(err, opts);
   }
+  console.error(err);
+  if (err.cause && err.cause.stack) {
+    console.log(err.cause.stack);
+  }
+  console.log(err.details);
 }

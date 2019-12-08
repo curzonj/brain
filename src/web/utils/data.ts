@@ -1,7 +1,12 @@
 import PouchDB from 'pouchdb';
 import cuid from 'cuid';
 
-import { reportError, ComplexError, annotateErrors } from '../../common/errors';
+import {
+  catchError,
+  reportError,
+  ComplexError,
+  annotateErrors,
+} from '../../common/errors';
 import * as models from '../../common/models';
 import { wrapProfiling } from '../../common/performance';
 import { Rendezvous } from '../../common/typed_event';
@@ -78,7 +83,7 @@ export async function addNote(topicId: string, text: string) {
 
   if (navigator.onLine) {
     const remoteDb = getRemoteDb();
-    reportError(async () => attemptNoteUpload(payload, remoteDb), {
+    catchError(async () => attemptNoteUpload(payload, remoteDb), {
       file: 'db',
       fn: 'attemptNoteUpload',
     });
@@ -106,7 +111,7 @@ async function isConfigured(): Promise<boolean> {
   // TODO once I have a better idea of what errors from
   // this can look like I'll delete the config and return
   // false sometimes
-  reportError(async () => remoteDb.info(), {
+  catchError(async () => remoteDb.info(), {
     at: 'db.isConfigured',
   });
 
@@ -138,11 +143,14 @@ function backgroundSync() {
     return;
   }
 
-  reportError(async () => {
-    const remoteDb = getRemoteDb();
-    await syncToLevelDB(remoteDb);
-    loading.done(true);
-    await uploadNotes(remoteDb);
+  catchError(async () => {
+    try {
+      const remoteDb = getRemoteDb();
+      await syncToLevelDB(remoteDb);
+      await uploadNotes(remoteDb);
+    } finally {
+      loading.done(true);
+    }
   });
 }
 

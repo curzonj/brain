@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { reportError } from '../../common/errors';
+import { catchError } from '../../common/errors';
 import { Menu } from './menu';
 
 type Props = {
@@ -19,7 +19,7 @@ export const BigTextAreaPage: React.FC<Props> = ({
 
   function onSubmitHandler(e: React.SyntheticEvent) {
     e.preventDefault();
-    reportError(() => handler(textValue));
+    catchError(() => handler(textValue));
   }
 
   function onChange(e: React.ChangeEvent<HTMLTextAreaElement>) {

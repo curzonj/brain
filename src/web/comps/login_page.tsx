@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { withRouter, RouteComponentProps } from 'react-router';
 import BarLoader from 'react-spinners/BarLoader';
-import { reportError } from '../../common/errors';
+import { catchError } from '../../common/errors';
 import { configure, initialize, loading } from '../utils/data';
 import { BigTextAreaPage } from './big_textarea';
 import { css } from '@emotion/core';
@@ -39,7 +39,7 @@ export const LoginRedirector = withRouter((props: RouteComponentProps) => {
   if (!dataLoaded) loading.once((err, done) => setDataLoaded(true));
 
   if (!dbInitialized && props.location.pathname !== '/login') {
-    reportError(async () => {
+    catchError(async () => {
       const ok = await initialize();
       if (ok) {
         setInitialized(true);

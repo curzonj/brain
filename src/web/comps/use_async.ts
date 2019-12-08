@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { deepEqual } from 'fast-equals';
-import { reportError } from '../../common/errors';
+import { catchError } from '../../common/errors';
 import { debounce, DebounceSettings } from 'lodash';
 import debug from '../../common/debug';
 
@@ -24,7 +24,7 @@ export function useAsync<T, V>(
   }
 ): T | undefined {
   function inner(params: V, cb: (ret: T | void) => void) {
-    reportError(async () => {
+    catchError(async () => {
       cb(await fn(params, cb));
     });
   }
