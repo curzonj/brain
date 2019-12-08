@@ -6,6 +6,7 @@ import { wrap, LevelWrapper } from '../leveldown';
 import { Indexer } from '../leveldown/indexing';
 import batching from '../leveldown/batch';
 import * as models from './models';
+import debug from './debug';
 
 export const codeStorageVersion = 11;
 
@@ -31,7 +32,11 @@ export function buildLevelDB(
   );
   const base = wrap(batched.db);
 
-  const write = batched.write;
+  const write = async () => {
+    debug.storage('batched.write at=start');
+    await batched.write();
+    debug.storage('batched.write at=finish');
+  };
 
   const topics = base.subIndexed<models.Payload>('topics')({
     backrefs: p => {

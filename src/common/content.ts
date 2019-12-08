@@ -1,7 +1,7 @@
 import * as models from './models';
 import { ComplexError } from './errors';
 import { LevelDB } from './leveldb';
-import { eachSeries } from 'async';
+import { eachOfLimit } from 'async';
 import debug from './debug';
 
 const topicStartKey = '$/topics/';
@@ -126,12 +126,15 @@ export async function updateLevelDB(
       limit: 200,
       batch_size: 200,
     });
-    debug.network('pouchdb.changes %O', {
-      resultLastSeq,
-      count: results.length,
-    });
+    debug.network(
+      'pouchdb.changes count=%s seq=%s',
+      results.length,
+      resultLastSeq
+    );
 
-    await eachSeries(results, async change => {
+    await eachOfLimit(results, 10, async (change, i) => {
+      if ((i as number) % 100 === 0)
+        debug.storage('topics.putOrDel progress=%s', i);
       if (change.deleted) {
         await leveldb.topics.del(lastSlashItem(change.id));
       } else if (change.doc && change.doc.metadata) {
@@ -161,12 +164,15 @@ export async function updateLevelDB(
 }
 
 export async function getAllDocs(sourceDb: PouchDB.Database) {
-  return sourceDb.allDocs<models.Payload>({
+  debug.network('getAllDocs at=start');
+  const ret = await sourceDb.allDocs<models.Payload>({
     include_docs: true,
     update_seq: true,
     startkey: topicStartKey,
     endkey: topicEndKey,
   });
+  debug.network('getAllDocs at=finish count=%s', ret.rows.length);
+  return ret;
 }
 
 export async function importTopicsToLevelDB(
@@ -174,9 +180,10 @@ export async function importTopicsToLevelDB(
   sourceDb: PouchDB.Database
 ) {
   const { rows, update_seq: resultSequence } = await getAllDocs(sourceDb);
-  debug.network('importTopicsToLevelDB %O', { count: rows.length });
 
-  await eachSeries(rows, async ({ doc }) => {
+  await eachOfLimit(rows, 10, async (row, i) => {
+    const { doc } = row;
+    if ((i as number) % 100 === 0) debug.storage('topics.put progress=%s', i);
     if (doc) {
       await leveldb.topics.put(doc.metadata.id, doc, {
         freshIndexes: true,
