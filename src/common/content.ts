@@ -3,6 +3,7 @@ import { ComplexError } from './errors';
 import { LevelDB } from './leveldb';
 import { eachOfLimit } from 'async';
 import debug from './debug';
+import { reportError } from './errors';
 
 const topicStartKey = '$/topics/';
 const topicEndKey = '$/topics/\ufff0';
@@ -186,14 +187,19 @@ export async function importTopicsToLevelDB(
   const { rows, update_seq: resultSequence } = await getAllDocs(sourceDb);
 
   await eachOfLimit(rows, 10, async (row, i) => {
-    const { doc } = row;
-    if ((i as number) % 100 === 0) debug.storage('topics.put progress=%s', i);
-    if (doc) {
-      debug.trace('topics.Put at=start index=%s id=%s', i, doc.metadata.id);
-      await leveldb.topics.put(doc.metadata.id, doc, {
-        freshIndexes: true,
-      });
-      debug.trace('topics.Put at=finish index=%s id=%s', i, doc.metadata.id);
+    try {
+      const { doc } = row;
+      if ((i as number) % 100 === 0) debug.storage('topics.put progress=%s', i);
+      if (doc) {
+        debug.trace('topics.Put at=start index=%s id=%s', i, doc.metadata.id);
+        await leveldb.topics.put(doc.metadata.id, doc, {
+          freshIndexes: true,
+        });
+        debug.trace('topics.Put at=finish index=%s id=%s', i, doc.metadata.id);
+      }
+    } catch (e) {
+      reportError(e);
+      throw e;
     }
   });
 
