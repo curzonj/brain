@@ -5,7 +5,7 @@ import * as yaml from 'js-yaml';
 import * as tmp from 'tmp';
 import { pick, omit, cloneDeep } from 'lodash';
 import cuid from 'cuid';
-import { debug as debugLib } from 'debug';
+import debug from '../common/debug';
 
 import {
   applyChanges,
@@ -22,7 +22,6 @@ import { schemaSelector } from './schema';
 import { groupBy } from './groupBy';
 import { exportFile } from './paths';
 
-const debug = debugLib('kbase:editor');
 const editorSchema = schemaSelector('editor');
 
 type editFileResult =
@@ -299,14 +298,14 @@ async function computeUpdates(
     k => !contentList[k] || !deepEqual(contentList[k], newContentList[k])
   );
 
-  debug('changedKeys %O', changedKeys);
+  debug.trace('changedKeys %O', changedKeys);
 
   const derivedChanges = computeDerivedRelationshipChanges(
     changedKeys,
     contentList,
     newContentList
   );
-  debug('derivedChanges %O', derivedChanges);
+  debug.trace('derivedChanges %O', derivedChanges);
   groupBy(derivedChanges, c => c.topicId).forEach(([topicId, changes]) => {
     const newTopicContent = newContentList[topicId];
     if (newTopicContent) {
@@ -365,12 +364,12 @@ async function updateTaskMetadata(
             const { metadata } = taskPayload.update;
             Object.assign(custom, metadata);
             if (!deepEqual(custom, metadata)) {
-              debug('assigning custom metadata to %s: %O', t.ref, custom);
+              debug.trace('assigning custom metadata to %s: %O', t.ref, custom);
               taskPayload.changed = true;
               Object.assign(metadata, custom);
             }
           } else {
-            debug('computeChanges for task %s: %O', t.ref, custom);
+            debug.trace('computeChanges for task %s: %O', t.ref, custom);
             await computeChangesFromKey(
               db,
               t.ref,

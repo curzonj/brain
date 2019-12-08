@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react';
 import { deepEqual } from 'fast-equals';
 import { reportError } from '../../common/errors';
 import { debounce, DebounceSettings } from 'lodash';
-import { debug as debugLib } from 'debug';
-
-const debug = debugLib('kbase:use_async');
+import debug from '../../common/debug';
 
 interface AsyncState<T, V> {
   params?: V;
@@ -45,7 +43,7 @@ export function useAsync<T, V>(
       const isEqual = previousResultForComparison
         ? deepEqual(result, previousResultForComparison)
         : false;
-      debug('params=%O result=%O changed=%o', params, result, !isEqual);
+      debug.trace('params=%O result=%O changed=%o', params, result, !isEqual);
       if (isEqual) return;
       setState({ fn: debouncedFn, params, result });
     });

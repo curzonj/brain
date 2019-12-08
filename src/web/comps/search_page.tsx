@@ -1,17 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useHistory } from 'react-router-dom';
-import { debug as debugLib } from 'debug';
 import { leveldb } from '../utils/data';
 import { ENDstr } from '../../leveldown/indexing';
-import * as models from '../../common/models';
-import { deriveTitle } from '../../common/content';
+import debug from '../../common/debug';
 import { useAsync } from './use_async';
 import { Menu } from './menu';
 import { maybePayloadsToTextObjects, TextObject } from '../utils/abstract_page';
 import { simpleList } from './topic_page';
 import './search_page.css';
-
-const debug = debugLib('kbase:search_page');
 
 export type MaybeString = string | undefined | null;
 export function SearchPage(props: {}) {
@@ -19,6 +15,7 @@ export function SearchPage(props: {}) {
   const location = useLocation();
   const query = new URLSearchParams(location.search);
   const searchTerm = query.get('search');
+  const [textValue, setTextValue] = useState<string>();
   const results = useAsync<TextObject[], MaybeString>(
     searchTerm,
     async (term: MaybeString): Promise<TextObject[]> => {
@@ -35,15 +32,19 @@ export function SearchPage(props: {}) {
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (e && e.target) {
       let value = e.target.value;
+      debug.uiEvents('onChange value=%s', value);
       if (value.length > 2) {
         history.replace({ ...location, search: `?search=${value}` });
+        setTextValue(value);
       } else {
         history.replace({ ...location, search: '' });
+        setTextValue(undefined);
       }
     }
   }
 
   function onSubmit(e: React.FormEvent) {
+    debug.uiEvents('onSubmit');
     e.preventDefault();
   }
 
@@ -58,9 +59,9 @@ export function SearchPage(props: {}) {
       <form onSubmit={onSubmit}>
         <input placeholder="Search for..." onChange={onChange} />
       </form>
+      <p>{searchTerm}</p>
+      <p>{textValue}</p>
       {searchTerm && results && simpleList(results)}
     </div>
   );
 }
-
-function useQuery() {}

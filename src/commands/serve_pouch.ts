@@ -5,11 +5,9 @@ import cors from 'cors';
 import expressPouchDB from 'express-pouchdb';
 import { getPouchDBClass, getDB } from '../cli/db';
 import { expressPouchDBConfig } from '../cli/paths';
-import { debug as debugLib } from 'debug';
+import debug from '../common/debug';
 
-const debug = debugLib('kbase:serve_pouch');
-
-debug('configuration path = %s', expressPouchDBConfig);
+debug.trace('configuration path = %s', expressPouchDBConfig);
 
 export default class ServerPouchCommand extends Command {
   public async run() {
