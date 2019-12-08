@@ -1,5 +1,6 @@
 import PouchDB from 'pouchdb';
 import cuid from 'cuid';
+import debug from '../../common/debug';
 
 import {
   catchError,
@@ -179,7 +180,7 @@ async function isStorageSchemaCurrent(): Promise<boolean> {
 }
 
 async function resetStorageSchema() {
-  console.log('Resetting storage schema');
+  debug.storage('Resetting storage schema');
   await leveljsStore.store('readwrite').clear();
   await leveldb.configs.put('storageVersion', codeStorageVersion);
   await leveldb.write();
