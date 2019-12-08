@@ -138,7 +138,7 @@ export async function updateLevelDB(
       resultLastSeq
     );
 
-    await eachOfLimit(results, 10, async (change, i) => {
+    await eachOfLimit(results, 30, async (change, i) => {
       if ((i as number) % 100 === 0)
         debug.storage('topics.putOrDel progress=%s', i);
       if (change.deleted) {
@@ -187,7 +187,7 @@ export async function importTopicsToLevelDB(
 ) {
   const { rows, update_seq: resultSequence } = await getAllDocs(sourceDb);
 
-  await eachOfLimit(rows, 10, async (row, i) => {
+  await eachOfLimit(rows, 30, async (row, i) => {
     try {
       const { doc } = row;
       if ((i as number) % 100 === 0) debug.storage('topics.put progress=%s', i);
