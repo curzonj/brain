@@ -175,6 +175,11 @@ async function isStorageSchemaCurrent(): Promise<boolean> {
   const value = await leveldb.configs
     .get('storageVersion')
     .catch((err: Error) => undefined);
+  debug.storage(
+    'storageVersion=%s codeStorageVersion=%s',
+    value,
+    codeStorageVersion
+  );
 
   return value && value >= codeStorageVersion;
 }

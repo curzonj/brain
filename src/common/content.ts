@@ -109,7 +109,11 @@ export function orderTaskList(tasks: models.Payload[]): models.Payload[] {
 export async function getLastSeq(
   leveldb: LevelDB
 ): Promise<number | string | undefined> {
-  return leveldb.configs.get('lastSeq').catch((err: Error) => undefined);
+  const ret = await leveldb.configs
+    .get('lastSeq')
+    .catch((err: Error) => undefined);
+  debug.storage('lastSeq=%s', ret);
+  return ret;
 }
 
 export async function updateLevelDB(
