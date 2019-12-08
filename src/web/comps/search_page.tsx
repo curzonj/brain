@@ -16,6 +16,7 @@ export function SearchPage(props: {}) {
   const query = new URLSearchParams(location.search);
   const searchTerm = query.get('search');
   const [textValue, setTextValue] = useState<string>();
+  debug.trace({ textValue, searchTerm });
   const results = useAsync<TextObject[], MaybeString>(
     searchTerm,
     async (term: MaybeString): Promise<TextObject[]> => {
@@ -59,8 +60,6 @@ export function SearchPage(props: {}) {
       <form onSubmit={onSubmit}>
         <input placeholder="Search for..." onChange={onChange} />
       </form>
-      <p>{searchTerm}</p>
-      <p>{textValue}</p>
       {searchTerm && results && simpleList(results)}
     </div>
   );
