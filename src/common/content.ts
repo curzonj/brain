@@ -1,7 +1,8 @@
 import * as models from './models';
 import { ComplexError } from './errors';
 import { LevelDB } from './leveldb';
-import { eachOfLimit } from 'async';
+//import { eachOfLimit } from 'async';
+import { eachOfLimit } from './eachOfLimit';
 import debug from './debug';
 import { reportError } from './errors';
 
