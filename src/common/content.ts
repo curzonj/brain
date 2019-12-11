@@ -15,10 +15,15 @@ export function deriveTitle(n: models.Topic): string {
 }
 
 export function notesSorter(
-  { metadata: a }: models.Payload,
-  { metadata: b }: models.Payload
+  p1: models.Payload,
+  p2: models.Payload
 ): -1 | 0 | 1 {
-  if (!a.created_at || !b.created_at) return 0;
+  const { metadata: a } = p1;
+  const { metadata: b } = p2;
+  if (!a || !a.created_at || !b || !b.created_at) {
+    debug.warning("invalid payloads: %O %O", p1, p2);
+    return 0;
+  }
   if (a.created_at > b.created_at) return -1;
   if (a.created_at < b.created_at) return 1;
   return 0;
@@ -149,7 +154,8 @@ export async function updateLevelDB(
     });
 
     await leveldb.configs.put('lastSeq', resultLastSeq);
-    await leveldb.write();
+    if (results.length > 0)
+      await leveldb.write();
 
     return { results: results.length, seq: resultLastSeq };
   };

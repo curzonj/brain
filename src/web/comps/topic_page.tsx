@@ -3,7 +3,6 @@ import { RouteComponentProps } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Menu } from './menu';
 import { PageHeader } from './elements';
-import './topic_page.css';
 import { useAsync } from './use_async';
 import { buildAbstractPage, Section, Div } from '../utils/abstract_page';
 

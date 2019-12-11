@@ -8,7 +8,7 @@ import batching from '../leveldown/batch';
 import * as models from './models';
 import debug from './debug';
 
-export const codeStorageVersion = 11;
+export const codeStorageVersion = 12;
 
 const tokenizer = new WordTokenizer();
 

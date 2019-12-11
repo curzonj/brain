@@ -1,7 +1,7 @@
 import { debug as debugLib } from 'debug';
 
 const debug = {
-  basic: debugLib('kbase:basic'),
+  warning: debugLib('kbase:warning'),
   events: debugLib('kbase:events'),
   network: debugLib('kbase:network'),
   storage: debugLib('kbase:storage'),

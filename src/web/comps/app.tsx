@@ -11,6 +11,7 @@ import { NotePage } from './note_page';
 import { LoginPage, LoginRedirector } from './login_page';
 import { MenuPage } from './menu_page';
 import { SearchPage } from './search_page';
+import { RecentPage } from './recent_page';
 import { ScrollToTop } from './scroll';
 import { LoadingStats } from './loading_stats';
 
@@ -26,6 +27,7 @@ export const App: React.FC = () => {
           <Route path="/login" component={LoginPage} />
           <Route path="/menu" component={MenuPage} />
           <Route path="/search" component={SearchPage} />
+          <Route path="/recent" component={RecentPage} />
           <Route path="/add_note/:topicId+" component={NotePage} />
           <Route path="/:topicId+" component={TopicPage} />
         </Switch>

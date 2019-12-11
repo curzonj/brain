@@ -17,11 +17,13 @@ export function wrap<V>(db: AbstractLevelDOWN<string, V>) {
 
 export class LevelWrapper<V, IDXRS extends Indexers<V>> {
   db: LevelUp<AbstractLevelDOWN<string, V>, AbstractIterator<string, V>>;
+  base: LevelUp<AbstractLevelDOWN<string, any>, AbstractIterator<string, any>>;
   idx: Indexes<V, IDXRS>;
   private indexed: boolean;
 
   constructor(db: AbstractLevelDOWN<string, V>, indexers: IDXRS) {
-    this.db = levelup(db);
+    this.base = levelup(db);
+    this.db = levelup(sublevel<V, string>(this.base, 'objects'));
     this.idx = this.buildIndexes(indexers);
     this.indexed = Object.keys(this.idx).length > 0;
   }
@@ -85,13 +87,13 @@ export class LevelWrapper<V, IDXRS extends Indexers<V>> {
   subIndexed<VS>(name: string) {
     return <SUBIDXRS extends Indexers<VS>>(indexers: SUBIDXRS) =>
       new LevelWrapper<VS, SUBIDXRS>(
-        sublevel<VS, string>(this.db, name),
+        sublevel<VS, string>(this.base, name),
         indexers
       );
   }
 
   sub<VS = V>(name: string) {
-    return new LevelWrapper<VS, {}>(sublevel<VS, string>(this.db, name), {});
+    return new LevelWrapper<VS, {}>(sublevel<VS, string>(this.base, name), {});
   }
 
   async getAll(options: AbstractIteratorOptions = {}): Promise<V[]> {
