@@ -90,6 +90,8 @@ function appendTaskChain(
   if (nextAction) {
     const nextPayload = tasks.find(t => t.metadata.id === nextAction.ref);
     if (!nextPayload) {
+      // TODO add a force option to skip this error
+      return;
       throw new ComplexError('broken task chain', {
         currentLink: p,
         availableTasks: tasks,

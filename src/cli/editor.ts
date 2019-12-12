@@ -167,7 +167,7 @@ function computeDerivedRelationshipChanges(
   newContentList: models.Map<EditorTopic>
 ): RelationshipChange[] {
   function forField(
-    dField: 'notes' | 'tasks',
+    dField: 'notes' | 'tasks' | 'collection',
     field: 'broader' | 'actionOn',
     k: string
   ) {
@@ -193,8 +193,18 @@ function computeDerivedRelationshipChanges(
   return changedKeys.flatMap((k: string): RelationshipChange[] => {
     return [
       forField('notes', 'broader', k),
+      forField('collection', 'broader', k),
       forField('tasks', 'actionOn', k),
     ].flat();
+  });
+}
+
+function applyObjectPatch(target: any, src: any) {
+  Object.assign(target, src)
+  Object.keys(src).forEach(k => {
+    if (src[k] === undefined) {
+      delete target[k];
+    }
   });
 }
 
@@ -221,7 +231,7 @@ async function computeChangesFromKey(
     topic: decomposed.topic,
   };
 
-  if (customMetadata) Object.assign(newPayload.metadata, customMetadata);
+  if (customMetadata) applyObjectPatch(newPayload.metadata, customMetadata);
 
   // tag: specialAttributes
   if (oldDoc.metadata.stale_at === undefined && newContent.stale === true)
@@ -317,6 +327,8 @@ async function computeUpdates(
         newContentList
       );
     } else {
+      // TODO add a force option to skip this error
+      return;
       throw new ComplexError('invalid derived change ref', {
         topicId,
         changes,
@@ -362,11 +374,12 @@ async function updateTaskMetadata(
           if (next) custom.nextAction = pick(next, 'ref');
           if (taskPayload) {
             const { metadata } = taskPayload.update;
-            Object.assign(custom, metadata);
-            if (!deepEqual(custom, metadata)) {
+            const newMetadata = cloneDeep(metadata);
+            applyObjectPatch(newMetadata, custom);
+            if (!deepEqual(newMetadata, metadata)) {
               debug.trace('assigning custom metadata to %s: %O', t.ref, custom);
               taskPayload.changed = true;
-              Object.assign(metadata, custom);
+              applyObjectPatch(metadata, custom);
             }
           } else {
             debug.trace('computeChanges for task %s: %O', t.ref, custom);
