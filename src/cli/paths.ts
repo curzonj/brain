@@ -2,16 +2,17 @@ import * as fs from 'fs';
 import xdgBasedir from 'xdg-basedir';
 import { codeStorageVersion } from '../common/leveldb';
 
-const base = '/home/curzonj/data'; // xdgBasedir.data || xdgBasedir.config
+// const base = '/home/curzonj/data'; // xdgBasedir.data || xdgBasedir.config
+// const datadir = `${base}/kbase`;
+const datadir = '/data';
 
-const datadir = `${base}/kbase`;
 const exportDir = `${datadir}/exports`;
 
 export const config = JSON.parse(
-  fs.readFileSync(`${base}/kbase/sync.json`, 'utf8')
+  fs.readFileSync(`${datadir}/sync.json`, 'utf8')
 );
 
-export const expressPouchDBConfig = `${base}/kbase/pouch_db.json`;
+export const expressPouchDBConfig = `${datadir}/pouch_db.json`;
 
 export function getDatabasePath() {
   const dir = `${datadir}/pouchdb`;
