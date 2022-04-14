@@ -7,7 +7,7 @@
     "@oclif/config": "^1.13.0",
     "@oclif/plugin-help": "^2.2.0",
     "ajv": "^6.10.0",
-    "async": "^3.1.0",
+    "async": "^3.2.2",
     "batchlevel": "0.0.2",
     "cli-ux": "^5.3.0",
     "cors": "^2.8.5",
