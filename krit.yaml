@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ${PODNAME}
+spec:
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+  containers:
+    - name: console
+      image: node:19
+      command: [ /bin/bash ]
+      workingDir: /code/web/brain
+      stdin: true
+      tty: true
+      volumeMounts:
+        - name: code
+          mountPath: /code
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: code
+      persistentVolumeClaim:
+        claimName: homedir-code
+    - name: data
+      persistentVolumeClaim:
+        claimName: homedir-data
