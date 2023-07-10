@@ -4,7 +4,7 @@ import { codeStorageVersion } from '../common/leveldb';
 
 // const base = '/home/curzonj/data'; // xdgBasedir.data || xdgBasedir.config
 // const datadir = `${base}/kbase`;
-const datadir = '/data';
+const datadir = '/data/kbase';
 
 const exportDir = `${datadir}/exports`;
 
